@@ -1,0 +1,17 @@
+{
+  "name": "latchi-social-hub",
+  "productName": "LATCHI SOCIAL HUB",
+  "version": "0.1.0",
+  "description": "Unified desktop hub for Instagram, Facebook, Messenger and Telegram — LATCHI",
+  "main": "src/main/main.js",
+  "author": "LATCHI",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "smoke": "electron . --smoke"
+  },
+  "devDependencies": {
+    "electron": "^41.7.1"
+  }
+}

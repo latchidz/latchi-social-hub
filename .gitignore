@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+
+# build output (packaging is intentionally not configured in Phase 1)
+dist/
+out/
+build/
+release/
+installer/
+
+# logs & system files
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# local test artifacts
+test-artifacts/
