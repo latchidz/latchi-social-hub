@@ -72,9 +72,9 @@
   "settings.homeBgTitle": "خلفية الشاشة الرئيسية",
   "settings.homeBgHint": "اختر خلفية شاشة البداية للتطبيق.",
   "settings.bgDefault": "افتراضي",
-  "settings.bgMesh": "تدرّج شبكي",
-  "settings.bgStripes": "خطوط ذهبية",
-  "settings.bgDots": "نقاط",
-  "settings.bgWave": "أمواج",
-  "settings.bgHex": "خلايا سداسية"
+  "settings.bg01": "فاخرة ذهبية",
+  "settings.slideshow": "سلايد شو الخلفية",
+  "settings.slideshowOn": "مفعل",
+  "settings.slideshowOff": "معطل",
+  "settings.slideshowHint": "تبديل تلقائي للخلفيات كل 3 ثوانٍ في الشاشة الرئيسية — يعمل فقط عند اختيار «افتراضي»."
 }

@@ -114,17 +114,9 @@ body[data-platform="telegram"]  { --brand: #229ED9; }
   background-size: cover;
   background-position: center;
   opacity: 0;
-  transition: opacity 320ms ease;
+  transition: opacity 800ms ease-in-out;
   pointer-events: none;
 }
-.bg-layer.on { opacity: 1; }
-
-/* CSP-safe: class-driven backgrounds, no inline styles */
-body[data-bg="mesh"]    .bg-layer { background-image: url('../../assets/backgrounds/mesh.svg'); }
-body[data-bg="stripes"] .bg-layer { background-image: url('../../assets/backgrounds/stripes.svg'); }
-body[data-bg="dots"]    .bg-layer { background-image: url('../../assets/backgrounds/dots.svg'); }
-body[data-bg="wave"]    .bg-layer { background-image: url('../../assets/backgrounds/wave.svg'); }
-body[data-bg="hex"]     .bg-layer { background-image: url('../../assets/backgrounds/hex.svg'); }
 
 .ov-banner {
   display: block;

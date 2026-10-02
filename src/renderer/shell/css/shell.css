@@ -595,3 +595,22 @@ body[data-focused="false"] .app-logo { opacity: .45; }
 }
 
 .bg-opt.selected .bg-name { color: var(--text); }
+
+
+/* ═══ BACKGROUND SLIDESHOW TOGGLE ════════════════════════════════════════ */
+
+.slideshow-row { margin-top: 12px; }
+
+#slideshowToggle { flex: 1 1 auto; justify-content: space-between; cursor: pointer; }
+
+#slideshowToggle .opt-state {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+#slideshowToggle.selected .opt-state { color: var(--accent); }
+
+#slideshowToggle.is-inactive { opacity: .55; }
+
+.slideshow-hint { margin-top: 8px; font-size: 11.5px; }
