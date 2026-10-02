@@ -28,13 +28,28 @@ const { getLocale } = require('./locales');
 const OUT = '/tmp/lsh-smoke';
 const WATCHDOG_MS = 300000; // hard cap for the whole run
 
-const PLATFORM_IDS = ['instagram', 'facebook', 'messenger', 'telegram'];
+const PLATFORM_IDS = [
+  'instagram', 'facebook', 'messenger', 'whatsapp',
+  'gmail', 'outlook', 'youtube', 'telegram',
+];
 const OFFICIAL_URLS = {
-  instagram: 'https://www.instagram.com/',
-  facebook: 'https://www.facebook.com/',
-  messenger: 'https://www.messenger.com/',
-  telegram: 'https://web.telegram.org/',
+  instagram: ['https://www.instagram.com/'],
+  facebook: ['https://www.facebook.com/'],
+  messenger: ['https://www.messenger.com/'],
+  whatsapp: ['https://web.whatsapp.com/'],
+  // signed-out sessions legitimately land on the SSO/marketing redirect
+  gmail: ['https://mail.google.com/', 'https://accounts.google.com/'],
+  outlook: ['https://outlook.live.com/', 'https://login.live.com/', 'https://www.microsoft.com/'],
+  youtube: ['https://www.youtube.com/'],
+  telegram: ['https://web.telegram.org/'],
 };
+// partition per platform (Meta platforms intentionally SHARE persist:meta)
+const PARTITIONS = {
+  instagram: 'meta', facebook: 'meta', messenger: 'meta',
+  whatsapp: 'whatsapp', gmail: 'google', outlook: 'microsoft',
+  youtube: 'youtube', telegram: 'telegram',
+};
+const PARTITION_NAMES = [...new Set(Object.values(PARTITIONS))]; // 6
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const withTimeout = (p, ms) => Promise.race([p, sleep(ms).then(() => 'TIMEOUT')]);
@@ -130,11 +145,11 @@ async function runSmoke({ wm, pm, settings }) {
           (results.consoleErrors.overlay[entry] = (results.consoleErrors.overlay[entry] || 0) + 1);
           return;
         }
-        // platform views & popups → group by session partition
-        for (const id of PLATFORM_IDS) {
-          if (wc.session.storagePath === session.fromPartition(`persist:${id}`).storagePath) {
-            results.consoleErrors.platforms[id] = results.consoleErrors.platforms[id] || [];
-            results.consoleErrors.platforms[id].push(entry);
+        // platform views & popups → group by session partition (shared by design)
+        for (const pn of PARTITION_NAMES) {
+          if (wc.session.storagePath === session.fromPartition(`persist:${pn}`).storagePath) {
+            results.consoleErrors.platforms[pn] = results.consoleErrors.platforms[pn] || [];
+            results.consoleErrors.platforms[pn].push(entry);
             return;
           }
         }
@@ -175,7 +190,11 @@ async function runSmoke({ wm, pm, settings }) {
       btnMax: !!document.getElementById('btnMax'),
       btnClose: !!document.getElementById('btnClose'),
       sidebar: !!document.getElementById('sidebar'),
-      platformButtons: document.querySelectorAll('.side-item[data-platform]').length,
+      platformButtons: document.querySelectorAll('.tile[data-platform]').length,
+      tilesWithImg: document.querySelectorAll('.tile[data-platform] img').length,
+      tileRatio: (() => { const t = document.querySelector('.tile[data-platform]'); if (!t) return null; const r = t.getBoundingClientRect(); return r.width ? +(r.height / r.width).toFixed(2) : null; })(),
+      backupCard: !!document.getElementById('btnBackupExport'),
+      bgOptions: document.querySelectorAll('#homeBgOptions .bg-opt').length,
       navLanguage: !!document.getElementById('navLanguage'),
       navSettings: !!document.getElementById('navSettings'),
       sidebarLabel: (document.querySelector('[data-i18n="sidebar.platforms"]')||{}).textContent || null
@@ -185,6 +204,12 @@ async function runSmoke({ wm, pm, settings }) {
 
   repLayout();
   results.overlayChecks.bootHome = await overlayCheck();
+  try {
+    const brand = await withTimeout(pm.overlay.webContents.executeJavaScript(
+      "JSON.stringify({bannerHidden:document.getElementById('ovBanner').hidden,bannerW:document.getElementById('ovBanner').naturalWidth,logoHidden:document.getElementById('ovLogo').hidden,bg:document.body.dataset.bg||null,bgLayerOn:document.getElementById('bgLayer').classList.contains('on')})"
+    ), 4000);
+    results.homeBranding = (typeof brand === 'string' && brand !== 'TIMEOUT') ? JSON.parse(brand) : { timeout: true };
+  } catch (e) { results.homeBranding = { err: String(e && e.message) }; }
   await captureView(win.webContents, '0-shell-home', results.screenshots);
 
   /* ══ B) ALL FOUR PLATFORMS: load → ready → url → not-blank → overlay ═══ */
@@ -223,7 +248,9 @@ async function runSmoke({ wm, pm, settings }) {
         let dom = await domProbe();
         let waitedMs = 0;
         const hasContent = (d) => d && d.n >= 50 && d.r === 'complete' && (d.t >= 20 || d.i >= 1 || d.tc >= 200);
-        while (dom && !hasContent(dom) && waitedMs < 15000) {
+        // retry while there is no usable reading — pages mid-redirect (e.g.
+        // outlook.live.com → microsoft.com) return null on the first probes
+        while (!(dom && hasContent(dom)) && waitedMs < 15000) {
           await sleep(1000); waitedMs += 1000;
           const next = await domProbe();
           if (next) dom = next;
@@ -240,25 +267,44 @@ async function runSmoke({ wm, pm, settings }) {
     }
   }
 
-  /* ══ C) SESSION ISOLATION ═════════════════════════════════════════════ */
-  const iso = { identity: {}, storagePaths: {}, distinctPaths: null, cookieProbe: null, noDefaultBleed: null, diskPartitions: {} };
+  /* ══ C) SESSION ISOLATION + META SESSION SHARING ══════════════════════ */
+  const iso = { identity: {}, storagePaths: {}, distinctPaths: null, cookieProbe: null, noDefaultBleed: null, diskPartitions: {}, metaSharing: null };
   for (const id of PLATFORM_IDS) {
-    const ses = session.fromPartition(`persist:${id}`);
+    const ses = session.fromPartition(`persist:${PARTITIONS[id]}`);
     const rec = pm.views.get(id);
     iso.identity[id] = !!(rec && rec.view.webContents.session === ses);
     iso.storagePaths[id] = ses.storagePath;
-    iso.diskPartitions[id] = fs.existsSync(path.join(userData, 'Partitions', id));
+    iso.diskPartitions[PARTITIONS[id]] = fs.existsSync(path.join(userData, 'Partitions', PARTITIONS[id]));
   }
-  iso.distinctPaths = new Set(Object.values(iso.storagePaths)).size === PLATFORM_IDS.length;
+  // platforms must map onto exactly 6 distinct partitions (8 platforms, Meta shared)
+  iso.distinctPaths = new Set(Object.values(iso.storagePaths)).size === PARTITION_NAMES.length;
   // cookie probe: same URL, different partitions, values must not bleed
-  await session.fromPartition('persist:instagram').cookies.set({ url: 'https://example.com/', name: 'lsh_iso', value: 'instagram' });
-  await session.fromPartition('persist:facebook').cookies.set({ url: 'https://example.com/', name: 'lsh_iso', value: 'facebook' });
-  const igC = await session.fromPartition('persist:instagram').cookies.get({ url: 'https://example.com/' });
-  const fbC = await session.fromPartition('persist:facebook').cookies.get({ url: 'https://example.com/' });
+  await session.fromPartition('persist:meta').cookies.set({ url: 'https://example.com/', name: 'lsh_iso', value: 'meta' });
+  await session.fromPartition('persist:telegram').cookies.set({ url: 'https://example.com/', name: 'lsh_iso', value: 'telegram' });
+  await session.fromPartition('persist:google').cookies.set({ url: 'https://example.com/', name: 'lsh_iso', value: 'google' });
+  const metaC = await session.fromPartition('persist:meta').cookies.get({ url: 'https://example.com/' });
+  const tgC = await session.fromPartition('persist:telegram').cookies.get({ url: 'https://example.com/' });
+  const gmC = await session.fromPartition('persist:google').cookies.get({ url: 'https://example.com/' });
   const defC = await session.defaultSession.cookies.get({ url: 'https://example.com/' });
-  iso.cookieProbe = (igC.find((c) => c.name === 'lsh_iso') || {}).value === 'instagram'
-    && (fbC.find((c) => c.name === 'lsh_iso') || {}).value === 'facebook';
+  iso.cookieProbe = (metaC.find((c) => c.name === 'lsh_iso') || {}).value === 'meta'
+    && (tgC.find((c) => c.name === 'lsh_iso') || {}).value === 'telegram'
+    && (gmC.find((c) => c.name === 'lsh_iso') || {}).value === 'google';
   iso.noDefaultBleed = !defC.some((c) => c.name === 'lsh_iso');
+  // META SHARING (T2): a cookie written through the instagram view's session
+  // must be readable from the messenger view's session — same persist:meta.
+  const igSes = pm.views.get('instagram') && pm.views.get('instagram').view.webContents.session;
+  const msSes = pm.views.get('messenger') && pm.views.get('messenger').view.webContents.session;
+  if (igSes && msSes) {
+    await igSes.cookies.set({ url: 'https://www.facebook.com/', name: 'lsh_meta_share', value: 'via-instagram' });
+    const seen = await msSes.cookies.get({ url: 'https://www.facebook.com/' });
+    const tgSes2 = pm.views.get('telegram').view.webContents.session;
+    const tgSeen = await tgSes2.cookies.get({ url: 'https://www.facebook.com/' });
+    iso.metaSharing = {
+      sameSessionObject: igSes === msSes,
+      cookieVisibleFromMessenger: (seen.find((c) => c.name === 'lsh_meta_share') || {}).value === 'via-instagram',
+      notVisibleFromTelegram: !tgSeen.some((c) => c.name === 'lsh_meta_share'),
+    };
+  }
   results.sessionIsolation = iso;
 
   /* ══ D) ROUND TRIPS: leave & return — no reload ═══════════════════════ */
@@ -448,7 +494,7 @@ async function runSmoke({ wm, pm, settings }) {
     if (extra.length) {
       const pw = extra[extra.length - 1];
       popupSessionOk = pw.webContents.session.storagePath
-        === session.fromPartition('persist:instagram').storagePath;
+        === session.fromPartition('persist:meta').storagePath;
       try { pw.close(); popupClosed = true; } catch (_e) { try { pw.destroy(); popupClosed = true; } catch (_e2) {} }
       await sleep(700);
     }
@@ -472,7 +518,7 @@ async function runSmoke({ wm, pm, settings }) {
     win.setSize(1280, 760);
     await sleep(600);
     const normal = await withTimeout(widthOf(), 4000);
-    results.responsive = { compactWidth: compact, normalWidth: normal, ok: compact < 100 && normal > 150 };
+    results.responsive = { compactWidth: compact, normalWidth: normal, ok: compact < 100 && normal >= 120 && normal < 160 };
   } catch (e) { results.responsive = { err: String(e && e.message) }; }
 
   /* ══ K) MEMORY / RESOURCE AUDIT ══════════════════════════════════════ */
@@ -480,8 +526,8 @@ async function runSmoke({ wm, pm, settings }) {
     try { return require('electron').webContents.getAllWebContents().length; } catch (_e) { return -1; }
   };
   const base1 = wcBaseline();
-  for (let n = 0; n < 6; n += 1) { // extra switching churn
-    pm.selectPlatform(PLATFORM_IDS[n % 4]);
+  for (let n = 0; n < 8; n += 1) { // extra switching churn across all 8
+    pm.selectPlatform(PLATFORM_IDS[n % PLATFORM_IDS.length]);
     await sleep(350);
   }
   pm.selectPlatform('telegram');
@@ -493,12 +539,12 @@ async function runSmoke({ wm, pm, settings }) {
   );
   const sessionsStillIsolated = PLATFORM_IDS.every((id) => {
     const rec = pm.views.get(id);
-    return rec && rec.view.webContents.session === session.fromPartition(`persist:${id}`);
+    return rec && rec.view.webContents.session === session.fromPartition(`persist:${PARTITIONS[id]}`);
   });
   results.memory = {
     viewCount: pm.views.size,
     viewIds: [...pm.views.keys()].sort(),
-    noDuplicateViews: pm.views.size === 4 && new Set(pm.views.keys()).size === 4,
+    noDuplicateViews: pm.views.size === PLATFORM_IDS.length && new Set(pm.views.keys()).size === PLATFORM_IDS.length,
     timersClean,
     webContentsStable: base1 === base2,
     webContentsCount: base2,
@@ -507,13 +553,121 @@ async function runSmoke({ wm, pm, settings }) {
     processCount: app.getAppMetrics().length,
   };
 
-  /* ══ L) CLEAR SESSIONS (real feature path) ═══════════════════════════ */
+  /* ══ L) HOME BACKGROUND SWITCH (T8 — applies instantly) ═══════════════ */
+  try {
+    pm.showHome();
+    await sleep(600);
+    settings.set({ homeBackground: 'mesh' });
+    pm.onHomeBackgroundChanged(); // same code path the settings:set IPC uses
+    await sleep(700);
+    const meshDom = await withTimeout(pm.overlay.webContents.executeJavaScript(
+      "JSON.stringify({bg:document.body.dataset.bg||null,on:document.getElementById('bgLayer').classList.contains('on')})"
+    ), 4000);
+    settings.set({ homeBackground: 'wave' });
+    pm.onHomeBackgroundChanged();
+    await sleep(700);
+    const waveDom = await withTimeout(pm.overlay.webContents.executeJavaScript(
+      "JSON.stringify({bg:document.body.dataset.bg||null,on:document.getElementById('bgLayer').classList.contains('on')})"
+    ), 4000);
+    settings.set({ homeBackground: 'default' }); // restore
+    pm.onHomeBackgroundChanged();
+    await sleep(600);
+    const backDom = await withTimeout(pm.overlay.webContents.executeJavaScript(
+      "JSON.stringify({bg:document.body.dataset.bg||null,on:document.getElementById('bgLayer').classList.contains('on')})"
+    ), 4000);
+    let invalidBgRejected = false;
+    try { settings.set({ homeBackground: 'neon' }); } catch (_e) { invalidBgRejected = true; }
+    results.homeBackground = {
+      mesh: JSON.parse(meshDom),
+      wave: JSON.parse(waveDom),
+      restored: JSON.parse(backDom),
+      invalidRejected: invalidBgRejected,
+      ok: false, // computed in verdict
+    };
+  } catch (e) { results.homeBackground = { err: String(e && e.message) }; }
+
+  /* ══ M) BACKUP: export → wrong password → delete partition → import ══ */
+  try {
+    const crypto = require('crypto');
+    const backup = require('./backup-manager');
+    const tmpFile = path.join(OUT, 'smoke-backup.latchi-backup');
+    const ctx = () => ({
+      settings,
+      platformIds: pm.platforms.map((p) => p.id),
+      partitionNames: [...new Set(pm.platforms.map((p) => p.partition))],
+    });
+    settings.set({ startupPlatform: 'telegram' }); // distinct value to prove settings restore
+
+    // marker cookie so the export payload has recognizable data
+    await session.fromPartition('persist:meta').cookies.set({ url: 'https://example.com/', name: 'lsh_backup_marker', value: 'pre-export' });
+    await sleep(400); // let Chromium flush the cookie jar to disk
+
+    // remember the on-disk Cookies file of the meta partition
+    const metaDir = path.join(userData, 'Partitions', 'meta');
+    const cookiesFile = path.join(metaDir, 'Cookies');
+    const diskBefore = fs.existsSync(cookiesFile) ? fs.readFileSync(cookiesFile) : null;
+
+    const exp = backup.exportToPath(tmpFile, 'pass-1234', ctx());
+    const buf = fs.readFileSync(tmpFile);
+    const headerOk = buf.slice(0, 8).toString('latin1') === 'LSHBKUP1';
+
+    // independent decrypt (verifies the format from first principles)
+    const decryptBackup = (b, password) => {
+      const salt = b.slice(8, 24), iv = b.slice(24, 36), tag = b.slice(36, 52), body = b.slice(52);
+      const key = crypto.scryptSync(password, salt, 32);
+      const d = crypto.createDecipheriv('aes-256-gcm', key, iv);
+      d.setAuthTag(tag);
+      return JSON.parse(Buffer.concat([d.update(body), d.final()]).toString('utf8'));
+    };
+    const manifest = decryptBackup(buf, 'pass-1234');
+    const allFiles = Object.values(manifest.partitions || {})
+      .flatMap((f) => Object.keys(f || {}));
+    const noLoginData = allFiles.every((f) => !/Login Data|Web Data|Passwords/i.test(f));
+    const hasMetaFiles = !!((manifest.partitions || {}).meta
+      && Object.keys(manifest.partitions.meta).some((f) => f.startsWith('Cookies')));
+    const platformsListed = (manifest.platforms || []).length === PLATFORM_IDS.length;
+
+    const wrong = backup.importFromPath(tmpFile, 'wrong-pass');
+    const badFile = backup.importFromPath(path.join(OUT, 'nope.latchi-backup'), 'pass-1234');
+
+    // T5 disaster: the partition is LOST — delete it from disk, then restore
+    fs.rmSync(metaDir, { recursive: true, force: true });
+    const wiped = !fs.existsSync(metaDir);
+
+    const imp = backup.importFromPath(tmpFile, 'pass-1234');
+    await sleep(600);
+    const restoredFile = fs.existsSync(cookiesFile) ? fs.readFileSync(cookiesFile) : null;
+    const bytesIdentical = !!(diskBefore && restoredFile
+      && diskBefore.length === restoredFile.length && diskBefore.equals(restoredFile));
+    const settingsFile = JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8'));
+    settings.set({ startupPlatform: 'last' }); // restore in-memory default
+    results.backup = {
+      export: { ok: exp.ok, size: exp.size, platformCount: exp.platformCount },
+      headerOk,
+      encrypted: headerOk && !buf.toString('latin1').includes('lsh_backup_marker'),
+      formatVerified: manifest.app === 'latchi-social-hub',
+      noLoginData,
+      hasMetaFiles,
+      platformsListed,
+      wrongPassword: wrong,
+      wrongRejected: !!(wrong && wrong.ok === false && wrong.error === 'wrong-password'),
+      badFileRejected: !!(badFile && badFile.ok === false && badFile.error === 'bad-file'),
+      partitionWiped: wiped,
+      imported: imp,
+      filesRestored: imp && imp.filesRestored,
+      cookiesFileRestored: !!restoredFile,
+      bytesIdentical,
+      settingsRestored: settingsFile.startupPlatform === 'telegram',
+    };
+  } catch (e) { results.backup = { err: String(e && e.message) }; }
+
+  /* ══ N) CLEAR SESSIONS (real feature path) ═══════════════════════════ */
   try {
     await pm.clearAllSessions();
     await sleep(500);
     const clearedViews = pm.views.size === 0;
-    const igCookiesAfter = await session.fromPartition('persist:instagram').cookies.get({ url: 'https://example.com/' });
-    const cookiesCleared = !igCookiesAfter.some((c) => c.name === 'lsh_iso');
+    const metaCookiesAfter = await session.fromPartition('persist:meta').cookies.get({ url: 'https://example.com/' });
+    const cookiesCleared = !metaCookiesAfter.some((c) => c.name === 'lsh_iso');
     pm.selectPlatform('telegram'); // fresh view, fresh load
     const snap = await waitFor(() => {
       const s = pm.getSnapshot();
@@ -532,7 +686,7 @@ async function runSmoke({ wm, pm, settings }) {
 
   /* ══ VERDICT ═════════════════════════════════════════════════════════ */
   const allReady = PLATFORM_IDS.every((id) => results.platformStates[id] === 'ready');
-  const urlsOk = PLATFORM_IDS.every((id) => (results.urls[id] || '').startsWith(OFFICIAL_URLS[id].replace(/\/$/, '')));
+  const urlsOk = PLATFORM_IDS.every((id) => OFFICIAL_URLS[id].some((u) => (results.urls[id] || '').startsWith(u)));
   const notBlank = PLATFORM_IDS.every((id) => {
     const b = results.blankCheck[id] && results.blankCheck[id].dom;
     return !!(b && b.n >= 50 && b.r === 'complete' && (b.t >= 20 || b.i >= 1 || b.tc >= 200));
@@ -547,7 +701,7 @@ async function runSmoke({ wm, pm, settings }) {
     && results.errorRetryFlow.recoveredReady;
   const isoOk = PLATFORM_IDS.every((id) => iso.identity[id]) && iso.distinctPaths
     && iso.cookieProbe && iso.noDefaultBleed
-    && PLATFORM_IDS.every((id) => iso.diskPartitions[id]);
+    && PARTITION_NAMES.every((pn) => iso.diskPartitions[pn]);
   const guardsOk = results.navGuards && results.navGuards.fileBlocked && results.navGuards.customProtocolBlocked;
   const popupsOk = results.popups && results.popups.externalDenied && results.popups.platformPopupCreated
     && results.popups.popupSessionIsolated && results.popups.windowsAfterCleanup;
@@ -556,22 +710,45 @@ async function runSmoke({ wm, pm, settings }) {
     && results.memory.webContentsStable && results.memory.sessionsNotRecreated;
   const clearOk = results.clearSessions && results.clearSessions.viewsDestroyed
     && results.clearSessions.cookiesWiped && results.clearSessions.reloadsAfterClear;
+  const homeBgOk = !!(results.homeBackground && !results.homeBackground.err
+    && results.homeBackground.mesh.bg === 'mesh' && results.homeBackground.mesh.on === true
+    && results.homeBackground.wave.bg === 'wave' && results.homeBackground.wave.on === true
+    && results.homeBackground.restored.bg === null && results.homeBackground.restored.on === false
+    && results.homeBackground.invalidRejected);
+  const backupOk = !!(results.backup && !results.backup.err
+    && results.backup.export.ok && results.backup.export.platformCount === PLATFORM_IDS.length
+    && results.backup.headerOk && results.backup.encrypted && results.backup.formatVerified
+    && results.backup.noLoginData && results.backup.hasMetaFiles && results.backup.platformsListed
+    && results.backup.wrongRejected && results.backup.badFileRejected
+    && results.backup.partitionWiped && results.backup.imported.ok
+    && results.backup.filesRestored > 0 && results.backup.cookiesFileRestored
+    && results.backup.bytesIdentical && results.backup.settingsRestored);
+  const brandingOk = !!(results.homeBranding && results.homeBranding.bannerHidden === false
+    && results.homeBranding.bannerW > 0 && results.homeBranding.logoHidden === true
+    && results.homeBranding.bg === null && results.homeBranding.bgLayerOn === false);
+  const metaSharingOk = !!(iso.metaSharing && iso.metaSharing.sameSessionObject
+    && iso.metaSharing.cookieVisibleFromMessenger && iso.metaSharing.notVisibleFromTelegram);
+  const tilesOk = !!(results.shellDom && results.shellDom.platformButtons === PLATFORM_IDS.length
+    && results.shellDom.tilesWithImg === PLATFORM_IDS.length
+    && results.shellDom.tileRatio >= 1.9 && results.shellDom.tileRatio <= 2.1
+    && results.shellDom.backupCard === true && results.shellDom.bgOptions === 6);
   const shellClean = results.consoleErrors.shell.length === 0
     && Object.keys(results.consoleErrors.overlay).length === 0;
 
   results.verdict = {
     window: results.window, shell: results.shell, allReady, urlsOk, notBlank, overlayOk,
     roundTrips: rtOk, errFlowOk, offlineOk: !!(results.offlineOverlay && results.offlineOverlay.shown),
-    isoOk, guardsOk, popupsOk, langOk, settingsOk: !!(results.settingsPanel && results.settingsPanel.panelOpened
+    isoOk, metaSharingOk, guardsOk, popupsOk, langOk, settingsOk: !!(results.settingsPanel && results.settingsPanel.panelOpened
       && results.settingsPanel.invalidRejected && results.settingsPanel.restored),
     responsiveOk: !!(results.responsive && results.responsive.ok), memOk, clearOk, shellClean,
+    homeBgOk, backupOk, brandingOk, tilesOk,
   };
   const ok = Object.values(results.verdict).every(Boolean);
 
   // trim noisy platform console logs (they are the platforms' own pages)
-  for (const id of PLATFORM_IDS) {
-    const arr = results.consoleErrors.platforms[id] || [];
-    results.consoleErrors.platforms[id] = { count: arr.length, sample: [...new Set(arr)].slice(0, 5) };
+  for (const pn of PARTITION_NAMES) {
+    const arr = results.consoleErrors.platforms[pn] || [];
+    results.consoleErrors.platforms[pn] = { count: arr.length, sample: [...new Set(arr)].slice(0, 5) };
   }
   results.consoleErrors.shell = results.consoleErrors.shell.slice(0, 10);
 

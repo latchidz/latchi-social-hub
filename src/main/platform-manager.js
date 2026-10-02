@@ -167,6 +167,13 @@ class PlatformManager {
     }
   }
 
+  onHomeBackgroundChanged() {
+    // repaint the home screen background if the overlay is currently visible
+    if (this._overlayShown && this._overlayPayload) {
+      this._renderOverlay(this._overlayPayload.type, this._overlayPayload.platformId);
+    }
+  }
+
   /* ── selection ─────────────────────────────────────────────────────────── */
 
   selectPlatform(id) {
@@ -425,6 +432,7 @@ class PlatformManager {
     const payload = {
       type,
       platformId: platformId || null,
+      homeBackground: this.settings.get('homeBackground') || 'default',
       strings: {
         loading: s['overlay.loading'],
         connecting: s['overlay.connecting'],

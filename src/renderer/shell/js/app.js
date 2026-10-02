@@ -23,6 +23,15 @@
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
   const t = (key, fb) => window.I18n.t(key, fb);
 
+  const HOME_BGS = [
+    { id: 'default', key: 'settings.bgDefault', thumb: null },
+    { id: 'mesh',    key: 'settings.bgMesh',    thumb: '../../assets/backgrounds/mesh.svg' },
+    { id: 'stripes', key: 'settings.bgStripes', thumb: '../../assets/backgrounds/stripes.svg' },
+    { id: 'dots',    key: 'settings.bgDots',    thumb: '../../assets/backgrounds/dots.svg' },
+    { id: 'wave',    key: 'settings.bgWave',    thumb: '../../assets/backgrounds/wave.svg' },
+    { id: 'hex',     key: 'settings.bgHex',     thumb: '../../assets/backgrounds/hex.svg' },
+  ];
+
   // dynamic platform list (from main); fallback mirrors platform-manager order
   const FALLBACK_PLATFORMS = [
     { id: 'instagram', name: 'Instagram' }, { id: 'facebook', name: 'Facebook' },
@@ -51,6 +60,7 @@
 
     await renderAppInfo();
     renderStartupOptions();
+    renderBackgroundOptions();
     renderLanguageOptions();
     setOnline(navigator.onLine);
 
@@ -66,6 +76,7 @@
     state.strings = await window.hub.getLocale(lang);
     window.I18n.apply(state.strings, lang);
     renderStartupOptions();
+    renderBackgroundOptions();
     renderLanguageOptions();
     renderPlatformTiles(); // refresh tile tooltips (platform names)
   }
@@ -276,6 +287,38 @@
     });
     $('#restartNow').addEventListener('click', () => window.hub.relaunchApp());
     $('#restartLater').addEventListener('click', () => { $('#restartModal').hidden = true; });
+  }
+
+  function renderBackgroundOptions() {
+    const wrap = $('#homeBgOptions');
+    if (!wrap) return;
+    wrap.textContent = '';
+    const current = (state.settings && state.settings.homeBackground) || 'default';
+    for (const bg of HOME_BGS) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bg-opt' + (bg.id === current ? ' selected' : '');
+      btn.dataset.bg = bg.id;
+      const thumb = document.createElement('span');
+      thumb.className = 'bg-thumb' + (bg.id === 'default' ? ' bg-thumb-default' : '');
+      if (bg.thumb) {
+        const img = document.createElement('img');
+        img.src = bg.thumb;
+        img.alt = '';
+        img.draggable = false;
+        thumb.appendChild(img);
+      }
+      const name = document.createElement('span');
+      name.className = 'bg-name';
+      name.textContent = t(bg.key, bg.id);
+      btn.append(thumb, name);
+      btn.addEventListener('click', async () => {
+        if (((state.settings || {}).homeBackground) === bg.id) return;
+        state.settings = await window.hub.setSettings({ homeBackground: bg.id });
+        renderBackgroundOptions();
+      });
+      wrap.appendChild(btn);
+    }
   }
 
   function renderStartupOptions() {

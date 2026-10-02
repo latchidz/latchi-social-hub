@@ -34,6 +34,17 @@
     document.body.dataset.type = type || 'home';
     document.body.dataset.platform = platformId || 'none';
 
+    // home branding: the banner replaces the hub logo on the home screen;
+    // the optional background layers beneath the radial gradient
+    const isHome = (type || 'home') === 'home';
+    $('#ovBanner').hidden = !isHome;
+    $('#ovLogo').hidden = isHome;
+    const bg = payload.homeBackground && payload.homeBackground !== 'default'
+      ? payload.homeBackground : null;
+    if (bg) document.body.dataset.bg = bg;
+    else delete document.body.dataset.bg;
+    $('#bgLayer').classList.toggle('on', !!bg);
+
     // logo
     const tplId = logoTemplateFor(type, platformId);
     const tpl = document.getElementById(tplId);

@@ -68,5 +68,13 @@
   "backup.restartTitle": "Imported — restart required",
   "backup.restartBody": "Sessions and settings were restored. Restart the app to apply the changes.",
   "backup.restartNow": "Restart now",
-  "backup.restartLater": "Later"
+  "backup.restartLater": "Later",
+  "settings.homeBgTitle": "Home screen background",
+  "settings.homeBgHint": "Choose the background of the app start screen.",
+  "settings.bgDefault": "Default",
+  "settings.bgMesh": "Mesh gradient",
+  "settings.bgStripes": "Gold stripes",
+  "settings.bgDots": "Dots",
+  "settings.bgWave": "Waves",
+  "settings.bgHex": "Hexagons"
 }

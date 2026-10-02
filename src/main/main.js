@@ -133,6 +133,7 @@ function registerIpc() {
     if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('ipc: invalid settings patch');
     const out = settings.set(patch);
     if (patch.language !== undefined) pm.onLanguageChanged();
+    if (patch.homeBackground !== undefined) pm.onHomeBackgroundChanged();
     return out;
   });
   ipcMain.handle('session:clearAll', () => pm.clearAllSessions());

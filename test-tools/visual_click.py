@@ -43,17 +43,26 @@ try:
     wx, wy = int(geo['X']), int(geo['Y'])
     out('V1 window', {'id': wid, 'pos': (wx, wy)})
 
-    for platform in ['instagram', 'facebook', 'messenger', 'telegram']:
+    # 8 platforms, dynamic rectangular tiles (sidebar is scrollable for 8)
+    tiles = json.loads(s.eval(
+        "JSON.stringify([...document.querySelectorAll('.tile[data-platform]')]"
+        ".map(t=>({id:t.dataset.platform, top:t.getBoundingClientRect().top}))"
+        ".map(o=>({id:o.id, visible:o.top>0 && o.top<innerHeight})))"))
+    out('V1b tiles', tiles)
+    for platform in [t['id'] for t in tiles]:
+        # scroll the sidebar until the tile is on-screen (8 tiles overflow at 900px)
+        s.eval(f"document.querySelector('.tile[data-platform={platform}]').scrollIntoView({{block:'center'}})")
+        time.sleep(0.25)
         btn = json.loads(s.eval(
             f"JSON.stringify((r=>({{cx:r.left+r.width/2,cy:r.top+r.height/2}}))"
-            f"(document.querySelector('.side-item[data-platform={platform}]').getBoundingClientRect()))"))
+            f"(document.querySelector('.tile[data-platform={platform}]').getBoundingClientRect()))"))
         xdotool('mousemove', str(int(wx + btn['cx'])), str(int(wy + btn['cy'])))
         time.sleep(0.3)
         xdotool('click', '1')
         deadline = time.time() + 30
         active = None
         while time.time() < deadline:
-            active = s.eval(f"document.querySelector('.side-item.active')?.dataset.platform || null")
+            active = s.eval(f"document.querySelector('.tile.active')?.dataset.platform || null")
             if active == platform: break
             time.sleep(1)
         out(f'V2 real-click {platform}', 'ACTIVATED' if active == platform else f'FAILED (active={active})')

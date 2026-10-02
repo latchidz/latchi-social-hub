@@ -68,5 +68,13 @@
   "backup.restartTitle": "تم الاستيراد — مطلوب إعادة تشغيل",
   "backup.restartBody": "أُعيدت بيانات الجلسات والإعدادات. أعد تشغيل التطبيق لتُطبَّق التغييرات.",
   "backup.restartNow": "إعادة التشغيل الآن",
-  "backup.restartLater": "لاحقاً"
+  "backup.restartLater": "لاحقاً",
+  "settings.homeBgTitle": "خلفية الشاشة الرئيسية",
+  "settings.homeBgHint": "اختر خلفية شاشة البداية للتطبيق.",
+  "settings.bgDefault": "افتراضي",
+  "settings.bgMesh": "تدرّج شبكي",
+  "settings.bgStripes": "خطوط ذهبية",
+  "settings.bgDots": "نقاط",
+  "settings.bgWave": "أمواج",
+  "settings.bgHex": "خلايا سداسية"
 }

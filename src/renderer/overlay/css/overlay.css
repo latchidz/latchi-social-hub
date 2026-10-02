@@ -102,4 +102,41 @@ body[data-platform="telegram"]  { --brand: #229ED9; }
 .ov-btn:hover { background: rgba(255, 255, 255, .09); }
 .ov-btn:active { transform: scale(.97); }
 
-.ov-btn[hidden], .ov-spinner[hidden] { display: none; }
+.ov-btn[hidden], .ov-spinner[hidden], .ov-banner[hidden], .ov-logo[hidden] { display: none; }
+
+
+/* ═══ HOME BRANDING: banner + selectable background ══════════════════════ */
+
+.bg-layer {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity 320ms ease;
+  pointer-events: none;
+}
+.bg-layer.on { opacity: 1; }
+
+/* CSP-safe: class-driven backgrounds, no inline styles */
+body[data-bg="mesh"]    .bg-layer { background-image: url('../../assets/backgrounds/mesh.svg'); }
+body[data-bg="stripes"] .bg-layer { background-image: url('../../assets/backgrounds/stripes.svg'); }
+body[data-bg="dots"]    .bg-layer { background-image: url('../../assets/backgrounds/dots.svg'); }
+body[data-bg="wave"]    .bg-layer { background-image: url('../../assets/backgrounds/wave.svg'); }
+body[data-bg="hex"]     .bg-layer { background-image: url('../../assets/backgrounds/hex.svg'); }
+
+.ov-banner {
+  display: block;
+  width: min(72%, 640px);
+  aspect-ratio: 3 / 1;
+  height: auto;
+  margin-bottom: 4px;
+  filter: drop-shadow(0 14px 44px rgba(0, 0, 0, .55));
+  animation: bannerIn 420ms var(--ease, ease-out);
+}
+
+@keyframes bannerIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
