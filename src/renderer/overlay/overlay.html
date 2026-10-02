@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:;">
+  <title>overlay</title>
+  <link rel="stylesheet" href="css/overlay.css">
+</head>
+<body data-type="home" data-platform="none">
+  <div id="overlay">
+    <div class="ov-inner">
+      <div class="ov-logo" id="ovLogo"></div>
+      <div class="ov-spinner" id="ovSpinner" hidden><div class="ring"></div></div>
+      <div class="ov-title" id="ovTitle"></div>
+      <div class="ov-sub" id="ovSub"></div>
+      <button id="ovRetry" class="ov-btn" type="button" hidden>
+        <svg width="15" height="15" viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M20.5 3.5v4.2h-4.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="ovRetryText"></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- logo templates -->
+  <template id="tpl-hub">
+    <svg width="64" height="64" viewBox="0 0 24 24">
+      <defs>
+        <linearGradient id="hubGoldOv" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#F6D47A"/><stop offset="1" stop-color="#D9A441"/>
+        </linearGradient>
+      </defs>
+      <rect x="2.2" y="2.2" width="19.6" height="19.6" rx="5.4" fill="none" stroke="url(#hubGoldOv)" stroke-width="1.4"/>
+      <path d="M8 8l2.6 2.6M16 8l-2.6 2.6M8 16l2.6-2.6M16 16l-2.6-2.6" fill="none" stroke="url(#hubGoldOv)" stroke-width="1.2" stroke-linecap="round"/>
+      <circle cx="12" cy="12" r="2" fill="url(#hubGoldOv)"/>
+      <circle cx="8" cy="8" r="1.5" fill="url(#hubGoldOv)"/><circle cx="16" cy="8" r="1.5" fill="url(#hubGoldOv)"/>
+      <circle cx="8" cy="16" r="1.5" fill="url(#hubGoldOv)"/><circle cx="16" cy="16" r="1.5" fill="url(#hubGoldOv)"/>
+    </svg>
+  </template>
+  <template id="tpl-instagram">
+    <svg width="64" height="64" viewBox="0 0 24 24">
+      <defs>
+        <linearGradient id="igGradOv" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stop-color="#FEDA75"/><stop offset=".45" stop-color="#FA7E1E"/>
+          <stop offset=".72" stop-color="#D62976"/><stop offset="1" stop-color="#4F5BD5"/>
+        </linearGradient>
+      </defs>
+      <circle cx="12" cy="12" r="11" fill="url(#igGradOv)"/>
+      <rect x="7" y="7" width="10" height="10" rx="3.2" fill="none" stroke="#fff" stroke-width="1.7"/>
+      <circle cx="12" cy="12" r="2.6" fill="none" stroke="#fff" stroke-width="1.7"/>
+      <circle cx="14.9" cy="9.1" r=".9" fill="#fff"/>
+    </svg>
+  </template>
+  <template id="tpl-facebook">
+    <svg width="64" height="64" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="11" fill="#1877F2"/>
+      <path fill="#fff" d="M13.4 20v-7.3h2.5l.4-2.9h-2.9V7.9c0-.8.2-1.4 1.4-1.4h1.6V3.9c-.3 0-1.2-.1-2.2-.1-2.2 0-3.7 1.3-3.7 3.8v2.2H8v2.9h2.5V20z"/>
+    </svg>
+  </template>
+  <template id="tpl-messenger">
+    <svg width="64" height="64" viewBox="0 0 24 24">
+      <defs>
+        <linearGradient id="msgGradOv" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#00B2FF"/><stop offset="1" stop-color="#A033FF"/>
+        </linearGradient>
+      </defs>
+      <circle cx="12" cy="12" r="11" fill="url(#msgGradOv)"/>
+      <path fill="#fff" d="M12 5.1c-3.9 0-7 2.8-7 6.3 0 1.9.9 3.6 2.4 4.8V19l2.3-1.2c.7.2 1.5.3 2.3.3 3.9 0 7-2.9 7-6.4S15.9 5.1 12 5.1Zm.8 9.6-2-2.2-3.7 2 4.1-4.3 2 2.2 3.7-2-4.1 4.3Z"/>
+    </svg>
+  </template>
+  <template id="tpl-telegram">
+    <svg width="64" height="64" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="11" fill="#229ED9"/>
+      <path fill="#fff" d="m21.9 4.6-3.1 14.5c-.2 1-.8 1.2-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-.9.5l.3-4.8L18.2 7c.4-.3-.1-.5-.6-.2L7.3 13.2l-4.6-1.4c-1-.3-1-1 .2-1.5L20.4 3.3c.8-.3 1.6.2 1.5 1.3Z"/>
+    </svg>
+  </template>
+  <template id="tpl-warning">
+    <svg width="58" height="58" viewBox="0 0 24 24">
+      <path d="M12 3.6 21.6 20.4H2.4Z" fill="none" stroke="#FFB224" stroke-width="1.7" stroke-linejoin="round"/>
+      <path d="M12 9.5v4.6" fill="none" stroke="#FFB224" stroke-width="1.7" stroke-linecap="round"/>
+      <circle cx="12" cy="17.2" r="1.05" fill="#FFB224"/>
+    </svg>
+  </template>
+  <template id="tpl-wifioff">
+    <svg width="58" height="58" viewBox="0 0 24 24">
+      <path d="M2.5 9.2a16.5 16.5 0 0 1 6.2-3.9M15.4 5.6a16.5 16.5 0 0 1 6.1 3.6M6 13.3a11 11 0 0 1 3-1.9M15.8 12.2a11 11 0 0 1 2.2 1.1M9.6 16.8a5.5 5.5 0 0 1 4.8 0" fill="none" stroke="#FF8A8D" stroke-width="1.7" stroke-linecap="round"/>
+      <circle cx="12" cy="19.6" r="1.2" fill="#FF8A8D"/>
+      <path d="M3.5 3.5l17 17" fill="none" stroke="#FF8A8D" stroke-width="1.7" stroke-linecap="round"/>
+    </svg>
+  </template>
+
+  <script src="js/overlay.js"></script>
+</body>
+</html>

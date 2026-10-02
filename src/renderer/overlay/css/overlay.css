@@ -1,0 +1,105 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Overlay — platform state screen (loading / connecting / error / offline / home)
+   Rendered inside a transparent WebContentsView on top of platform content.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --bg-base: #0A0D14;
+  --text: #E9EDF6;
+  --text-muted: #8B93AD;
+  --brand: #F2C14E; /* replaced per platform via data-platform */
+  --font: "Segoe UI", "Segoe UI Arabic", Tahoma, Arial, sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  background: transparent; /* the view itself composites over platform content */
+  font-family: var(--font);
+  user-select: none;
+  cursor: default;
+}
+
+/* per-platform brand tint (CSP-safe: classes, not inline styles) */
+body[data-platform="instagram"] { --brand: #E1306C; }
+body[data-platform="facebook"]  { --brand: #1877F2; }
+body[data-platform="messenger"] { --brand: #A033FF; }
+body[data-platform="telegram"]  { --brand: #229ED9; }
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity 280ms cubic-bezier(.25, .6, .3, 1);
+  background:
+    radial-gradient(720px 420px at 50% 36%, rgba(19, 26, 44, .9) 0%, rgba(10, 13, 20, .97) 70%),
+    #0A0D14;
+}
+
+#overlay.visible { opacity: 1; }
+
+.ov-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 460px;
+  padding: 24px;
+  text-align: center;
+}
+
+.ov-logo { filter: drop-shadow(0 8px 28px rgba(0, 0, 0, .5)); }
+
+/* animated loader */
+.ov-spinner { display: grid; place-items: center; }
+
+.ov-spinner .ring {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, .12);
+  border-top-color: var(--brand);
+  animation: spin .8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.ov-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.ov-sub {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.ov-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 8px;
+  padding: 10px 22px;
+  border: 1px solid var(--brand);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .03);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13.5px;
+  font-weight: 600;
+  outline: none;
+  cursor: default;
+  transition: background 140ms ease, transform 140ms ease;
+}
+
+.ov-btn:hover { background: rgba(255, 255, 255, .09); }
+.ov-btn:active { transform: scale(.97); }
+
+.ov-btn[hidden], .ov-spinner[hidden] { display: none; }
