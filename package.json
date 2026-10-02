@@ -1,8 +1,8 @@
 {
   "name": "latchi-social-hub",
   "productName": "LATCHI SOCIAL HUB",
-  "version": "0.1.1",
-  "description": "Unified desktop hub for Instagram, Facebook, Messenger and Telegram — LATCHI",
+  "version": "0.2.0",
+  "description": "Unified desktop hub for Instagram, Facebook, Messenger, WhatsApp, Gmail, Outlook, YouTube and Telegram — LATCHI",
   "main": "src/main/main.js",
   "author": "LATCHI",
   "license": "UNLICENSED",
