@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:;">
+  <title>LATCHI SOCIAL HUB</title>
+  <link rel="stylesheet" href="css/shell.css">
+</head>
+<body data-focused="true">
+  <svg class="svg-defs" width="0" height="0" aria-hidden="true">
+    <defs>
+      <!-- window controls -->
+      <symbol id="i-min" viewBox="0 0 24 24"><path d="M5 12h14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+      <symbol id="i-max" viewBox="0 0 24 24"><rect x="6.2" y="6.2" width="11.6" height="11.6" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+      <symbol id="i-restore" viewBox="0 0 24 24"><rect x="5.4" y="8.4" width="10.2" height="10.2" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8.6 5.4H17a2 2 0 0 1 2 2v8.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.4 6.4l11.2 11.2M17.6 6.4L6.4 17.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+
+      <!-- system -->
+      <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="1.7"/><ellipse cx="12" cy="12" rx="3.9" ry="8.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.4 12h17.2" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-wifioff" viewBox="0 0 24 24"><path d="M2.5 9.2a16.5 16.5 0 0 1 6.2-3.9M15.4 5.6a16.5 16.5 0 0 1 6.1 3.6M6 13.3a11 11 0 0 1 3-1.9M15.8 12.2a11 11 0 0 1 2.2 1.1M9.6 16.8a5.5 5.5 0 0 1 4.8 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="19.6" r="1.2" fill="currentColor"/><path d="M3.5 3.5l17 17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+
+      <!-- app logo: hub (4 platform nodes + center) -->
+      <symbol id="l-hub" viewBox="0 0 24 24">
+        <defs>
+          <linearGradient id="hubGold" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#F6D47A"/><stop offset="1" stop-color="#D9A441"/>
+          </linearGradient>
+        </defs>
+        <rect x="2.2" y="2.2" width="19.6" height="19.6" rx="5.4" fill="none" stroke="url(#hubGold)" stroke-width="1.7"/>
+        <path d="M8 8l2.6 2.6M16 8l-2.6 2.6M8 16l2.6-2.6M16 16l-2.6-2.6" fill="none" stroke="url(#hubGold)" stroke-width="1.4" stroke-linecap="round"/>
+        <circle cx="12" cy="12" r="2" fill="url(#hubGold)"/>
+        <circle cx="8" cy="8" r="1.5" fill="url(#hubGold)"/><circle cx="16" cy="8" r="1.5" fill="url(#hubGold)"/>
+        <circle cx="8" cy="16" r="1.5" fill="url(#hubGold)"/><circle cx="16" cy="16" r="1.5" fill="url(#hubGold)"/>
+      </symbol>
+
+      <!-- platform logos -->
+      <symbol id="l-instagram" viewBox="0 0 24 24">
+        <defs>
+          <linearGradient id="igGrad" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0" stop-color="#FEDA75"/><stop offset=".45" stop-color="#FA7E1E"/>
+            <stop offset=".72" stop-color="#D62976"/><stop offset="1" stop-color="#4F5BD5"/>
+          </linearGradient>
+        </defs>
+        <circle cx="12" cy="12" r="11" fill="url(#igGrad)"/>
+        <rect x="7" y="7" width="10" height="10" rx="3.2" fill="none" stroke="#fff" stroke-width="1.7"/>
+        <circle cx="12" cy="12" r="2.6" fill="none" stroke="#fff" stroke-width="1.7"/>
+        <circle cx="14.9" cy="9.1" r=".9" fill="#fff"/>
+      </symbol>
+      <symbol id="l-facebook" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="11" fill="#1877F2"/>
+        <path fill="#fff" d="M13.4 20v-7.3h2.5l.4-2.9h-2.9V7.9c0-.8.2-1.4 1.4-1.4h1.6V3.9c-.3 0-1.2-.1-2.2-.1-2.2 0-3.7 1.3-3.7 3.8v2.2H8v2.9h2.5V20z"/>
+      </symbol>
+      <symbol id="l-messenger" viewBox="0 0 24 24">
+        <defs>
+          <linearGradient id="msgGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#00B2FF"/><stop offset="1" stop-color="#A033FF"/>
+          </linearGradient>
+        </defs>
+        <circle cx="12" cy="12" r="11" fill="url(#msgGrad)"/>
+        <path fill="#fff" d="M12 5.1c-3.9 0-7 2.8-7 6.3 0 1.9.9 3.6 2.4 4.8V19l2.3-1.2c.7.2 1.5.3 2.3.3 3.9 0 7-2.9 7-6.4S15.9 5.1 12 5.1Zm.8 9.6-2-2.2-3.7 2 4.1-4.3 2 2.2 3.7-2-4.1 4.3Z"/>
+      </symbol>
+      <symbol id="l-telegram" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="11" fill="#229ED9"/>
+        <path fill="#fff" d="m21.9 4.6-3.1 14.5c-.2 1-.8 1.2-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-.9.5l.3-4.8L18.2 7c.4-.3-.1-.5-.6-.2L7.3 13.2l-4.6-1.4c-1-.3-1-1 .2-1.5L20.4 3.3c.8-.3 1.6.2 1.5 1.3Z"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <div id="app">
+    <!-- ═══ CUSTOM TITLE BAR ═══ -->
+    <header id="titlebar">
+      <div class="tb-brand">
+        <svg class="app-logo" width="20" height="20"><use href="#l-hub"/></svg>
+        <span class="app-name">LATCHI SOCIAL HUB</span>
+      </div>
+      <div id="netBadge" class="net-badge" hidden>
+        <svg width="13" height="13"><use href="#i-wifioff"/></svg>
+        <span data-i18n="net.offline">غير متصل</span>
+      </div>
+      <div id="winControls">
+        <button id="btnMin" class="wc-btn" type="button" data-i18n-title="window.minimize"><svg width="15" height="15"><use href="#i-min"/></svg></button>
+        <button id="btnMax" class="wc-btn" type="button" data-i18n-title="window.maximize">
+          <svg id="iconMax" width="15" height="15"><use href="#i-max"/></svg>
+          <svg id="iconRestore" width="15" height="15" hidden><use href="#i-restore"/></svg>
+        </button>
+        <button id="btnClose" class="wc-btn wc-close" type="button" data-i18n-title="window.close"><svg width="15" height="15"><use href="#i-close"/></svg></button>
+      </div>
+    </header>
+
+    <div id="mainRow">
+      <!-- ═══ SIDEBAR ═══ -->
+      <nav id="sidebar" aria-label="LATCHI SOCIAL HUB">
+        <div class="side-section">
+          <div class="side-label" data-i18n="sidebar.platforms">المنصات</div>
+          <button class="side-item" type="button" data-platform="instagram">
+            <span class="side-icon"><svg width="21" height="21"><use href="#l-instagram"/></svg></span>
+            <span class="side-text" data-i18n="platform.instagram">Instagram</span>
+          </button>
+          <button class="side-item" type="button" data-platform="facebook">
+            <span class="side-icon"><svg width="21" height="21"><use href="#l-facebook"/></svg></span>
+            <span class="side-text" data-i18n="platform.facebook">Facebook</span>
+          </button>
+          <button class="side-item" type="button" data-platform="messenger">
+            <span class="side-icon"><svg width="21" height="21"><use href="#l-messenger"/></svg></span>
+            <span class="side-text" data-i18n="platform.messenger">Messenger</span>
+          </button>
+          <button class="side-item" type="button" data-platform="telegram">
+            <span class="side-icon"><svg width="21" height="21"><use href="#l-telegram"/></svg></span>
+            <span class="side-text" data-i18n="platform.telegram">Telegram</span>
+          </button>
+        </div>
+
+        <div class="side-section side-bottom">
+          <div class="side-label" data-i18n="sidebar.system">النظام</div>
+          <button class="side-item" type="button" id="navLanguage">
+            <span class="side-icon"><svg width="19" height="19"><use href="#i-globe"/></svg></span>
+            <span class="side-text" data-i18n="sidebar.language">اللغة</span>
+          </button>
+          <button class="side-item" type="button" id="navSettings">
+            <span class="side-icon"><svg width="19" height="19"><use href="#i-gear"/></svg></span>
+            <span class="side-text" data-i18n="sidebar.settings">الإعدادات</span>
+          </button>
+        </div>
+      </nav>
+
+      <!-- ═══ CONTENT AREA (platform views + overlay live here) ═══ -->
+      <main id="content">
+        <div id="contentBackdrop"></div>
+
+        <!-- Settings page (shell-owned; platform views hide while open) -->
+        <section id="settingsPanel" hidden>
+          <div class="panel-scroll">
+            <div class="panel-head">
+              <button id="btnSettingsBack" class="icon-btn" type="button" data-i18n-title="settings.back"><svg width="17" height="17"><use href="#i-back"/></svg></button>
+              <h2 data-i18n="settings.title">الإعدادات</h2>
+            </div>
+
+            <div class="card">
+              <div class="card-title" data-i18n="settings.language">اللغة</div>
+              <div class="card-desc" data-i18n="settings.languageDesc">لغة واجهة التطبيق</div>
+              <div class="opt-row">
+                <button class="opt" type="button" data-lang="ar"><span data-i18n="lang.ar">العربية</span><span class="opt-check"><svg width="15" height="15"><use href="#i-check"/></svg></span></button>
+                <button class="opt" type="button" data-lang="en"><span data-i18n="lang.en">English</span><span class="opt-check"><svg width="15" height="15"><use href="#i-check"/></svg></span></button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-title" data-i18n="settings.startup">منصة البداية</div>
+              <div class="card-desc" data-i18n="settings.startupDesc">المنصة التي تُفتح عند تشغيل التطبيق</div>
+              <div class="opt-row wrap" id="startupOpts"></div>
+            </div>
+
+            <div class="card">
+              <div class="card-title" data-i18n="settings.clear">مسح بيانات الجلسات</div>
+              <div class="card-desc" data-i18n="settings.clearDesc">يمكن أن يسجّل خروجك من المنصات المتصلة</div>
+              <button id="btnClearSessions" class="danger-btn" type="button" data-i18n="settings.clearBtn">مسح البيانات</button>
+            </div>
+
+            <div class="card">
+              <div class="card-title" data-i18n="settings.info">معلومات التطبيق</div>
+              <div class="info-rows">
+                <div class="info-row"><span class="k" data-i18n="settings.appName">التطبيق</span><span class="v" id="infoName"></span></div>
+                <div class="info-row"><span class="k" data-i18n="settings.version">الإصدار</span><span class="v" id="infoVersion"></span></div>
+                <div class="info-row"><span class="k" data-i18n="settings.electron">Electron</span><span class="v" id="infoElectron"></span></div>
+                <div class="info-row"><span class="k" data-i18n="settings.copyright">الحقوق</span><span class="v" id="infoCopyright"></span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- ═══ Language modal ═══ -->
+  <div id="langModal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog">
+      <div class="modal-title" data-i18n="settings.language">اللغة</div>
+      <div class="opt-row col">
+        <button class="opt lg" type="button" data-lang="ar"><span data-i18n="lang.ar">العربية</span><span class="opt-check"><svg width="16" height="16"><use href="#i-check"/></svg></span></button>
+        <button class="opt lg" type="button" data-lang="en"><span data-i18n="lang.en">English</span><span class="opt-check"><svg width="16" height="16"><use href="#i-check"/></svg></span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Confirm modal (clear sessions) ═══ -->
+  <div id="confirmModal" class="modal-backdrop" hidden>
+    <div class="modal" role="alertdialog">
+      <div class="modal-title" data-i18n="confirm.clearTitle">مسح بيانات الجلسات؟</div>
+      <div class="modal-body" data-i18n="confirm.clearBody">قد يتم تسجيل خروجك من المنصات المتصلة.</div>
+      <div class="modal-actions">
+        <button id="confirmCancel" class="ghost-btn" type="button" data-i18n="confirm.cancel">إلغاء</button>
+        <button id="confirmClear" class="danger-btn" type="button" data-i18n="confirm.clear">مسح</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
