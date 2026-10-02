@@ -9,6 +9,7 @@
 (function () {
   const state = {
     settings: null,
+    platforms: null,
     strings: null,
     lang: 'ar',
     online: navigator.onLine,
@@ -22,7 +23,13 @@
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
   const t = (key, fb) => window.I18n.t(key, fb);
 
-  const PLATFORM_IDS = ['instagram', 'facebook', 'messenger', 'telegram'];
+  // dynamic platform list (from main); fallback mirrors platform-manager order
+  const FALLBACK_PLATFORMS = [
+    { id: 'instagram', name: 'Instagram' }, { id: 'facebook', name: 'Facebook' },
+    { id: 'messenger', name: 'Messenger' }, { id: 'whatsapp', name: 'WhatsApp' },
+    { id: 'gmail', name: 'Gmail' }, { id: 'outlook', name: 'Outlook' },
+    { id: 'youtube', name: 'YouTube' }, { id: 'telegram', name: 'Telegram' },
+  ];
 
   /* ── boot ─────────────────────────────────────────────────────────────── */
 
@@ -38,6 +45,9 @@
     bindSettings();
     bindEvents();
     observeLayout();
+
+    state.platforms = await loadPlatforms();
+    renderPlatformTiles();
 
     await renderAppInfo();
     renderStartupOptions();
@@ -57,6 +67,7 @@
     window.I18n.apply(state.strings, lang);
     renderStartupOptions();
     renderLanguageOptions();
+    renderPlatformTiles(); // refresh tile tooltips (platform names)
   }
 
   function renderLanguageOptions() {
@@ -104,26 +115,57 @@
   /* ── sidebar ──────────────────────────────────────────────────────────── */
 
   function bindSidebar() {
-    $$('.side-item[data-platform]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        setActiveSidebar(btn.dataset.platform);
-        window.hub.selectPlatform(btn.dataset.platform);
-      });
+    $('#platformTiles').addEventListener('click', (e) => {
+      const tile = e.target.closest('.tile[data-platform]');
+      if (!tile) return;
+      setActiveSidebar(tile.dataset.platform);
+      window.hub.selectPlatform(tile.dataset.platform);
     });
 
     $('#navLanguage').addEventListener('click', () => openPanel('language'));
     $('#navSettings').addEventListener('click', () => openPanel('settings'));
   }
 
+  async function loadPlatforms() {
+    try {
+      const list = await window.hub.getPlatforms();
+      if (Array.isArray(list) && list.length) return list;
+    } catch (_e) { /* fall back to static list */ }
+    return FALLBACK_PLATFORMS;
+  }
+
+  function renderPlatformTiles() {
+    const wrap = $('#platformTiles');
+    if (!wrap || !state.platforms) return;
+    wrap.textContent = '';
+    for (const p of state.platforms) {
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.className = 'tile';
+      tile.dataset.platform = p.id;
+      tile.title = p.name;
+      tile.setAttribute('role', 'listitem');
+      tile.setAttribute('aria-label', p.name);
+      const img = document.createElement('img');
+      img.src = `../../assets/platforms/${p.id}.svg`;
+      img.onerror = () => { img.src = `../../assets/platforms/${p.id}.png`; };
+      img.alt = p.name;
+      img.draggable = false;
+      tile.appendChild(img);
+      wrap.appendChild(tile);
+    }
+    setActiveSidebar(state.activePlatform);
+  }
+
   function setActiveSidebar(id) {
-    $$('.side-item[data-platform]').forEach((btn) => {
+    $$('.tile[data-platform]').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.platform === id);
     });
     const sysActive = state.panel !== null;
     $('#navLanguage').classList.toggle('active', state.panel === 'language');
     $('#navSettings').classList.toggle('active', state.panel === 'settings');
     if (!sysActive) { /* keep as is */ }
-    if (!id) $$('.side-item[data-platform]').forEach((b) => b.classList.remove('active'));
+    if (!id) $$('.tile[data-platform]').forEach((b) => b.classList.remove('active'));
   }
 
   /* ── panels (settings / language) ─────────────────────────────────────── */
@@ -242,7 +284,7 @@
     const opts = [
       { v: 'last', label: t('settings.startup.last') },
       { v: 'home', label: t('settings.startup.home') },
-      ...PLATFORM_IDS.map((id) => ({ v: id, label: t('platform.' + id, id) })),
+      ...(state.platforms || FALLBACK_PLATFORMS).map((p) => ({ v: p.id, label: t('platform.' + p.id, p.name) })),
     ];
     const current = (state.settings && state.settings.startupPlatform) || 'last';
     opts.forEach((o) => {

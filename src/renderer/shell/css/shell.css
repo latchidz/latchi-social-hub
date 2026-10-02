@@ -24,7 +24,8 @@
   --radius-lg: 16px;
 
   --titlebar-h: 46px;
-  --sidebar-w: 224px;
+  --sidebar-w: 128px;
+  --tile-w: 64px;
   --sidebar-compact: 64px;
 
   --font: "Segoe UI", "Segoe UI Arabic", Tahoma, "Helvetica Neue", Arial, sans-serif;
@@ -144,7 +145,8 @@ body[data-focused="false"] .app-logo { opacity: .45; }
 .side-bottom { margin-top: auto; }
 
 .side-label {
-  padding: 0 12px 8px;
+  padding: 0 2px 8px;
+  text-align: center;
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 1.4px;
@@ -155,17 +157,18 @@ body[data-focused="false"] .app-logo { opacity: .45; }
   position: relative;
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 8px;
   width: 100%;
-  padding: 9.5px 12px;
+  padding: 9.5px 10px;
+  justify-content: center;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-muted);
   font-family: var(--font);
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 500;
-  text-align: start;
+  text-align: center;
   outline: none;
   transition: background var(--t-fast), color var(--t-fast);
 }
@@ -187,15 +190,52 @@ body[data-focused="false"] .app-logo { opacity: .45; }
   box-shadow: 0 0 10px var(--brand);
 }
 
-/* per-platform brand colors (CSP-safe: no inline styles) */
-.side-item[data-platform="instagram"] { --brand: #E1306C; }
-.side-item[data-platform="facebook"]  { --brand: #1877F2; }
-.side-item[data-platform="messenger"] { --brand: #A033FF; }
-.side-item[data-platform="telegram"]  { --brand: #229ED9; }
-.side-item[data-platform="instagram"].active { background: rgba(225, 48, 108, .13); }
-.side-item[data-platform="facebook"].active  { background: rgba(24, 119, 242, .13); }
-.side-item[data-platform="messenger"].active { background: rgba(160, 51, 255, .13); }
-.side-item[data-platform="telegram"].active  { background: rgba(34, 158, 217, .13); }
+/* ── platform tiles (3:6 vector icons, dynamic list) ───────────────────── */
+.side-platforms { flex: 1 1 auto; min-height: 0; }
+
+.platform-tiles {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px 3px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.platform-tiles::-webkit-scrollbar { width: 5px; }
+.platform-tiles::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.tile {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--tile-w);
+  aspect-ratio: 1 / 2;
+  margin: 0 auto;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 9px;
+  background: none;
+  overflow: hidden;
+  cursor: pointer;
+  outline: none;
+  transition: box-shadow var(--t-fast), border-color var(--t-fast), transform var(--t-fast);
+}
+
+.tile img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+
+.tile:hover {
+  border-color: rgba(242, 193, 78, .55);
+  box-shadow: 0 0 14px rgba(242, 193, 78, .18);
+}
+
+.tile.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 16px rgba(242, 193, 78, .30);
+}
+
+.tile:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
 
 #navLanguage, #navSettings { --brand: var(--accent); }
 #navLanguage.active, #navSettings.active { background: rgba(242, 193, 78, .10); }
@@ -412,10 +452,11 @@ body[data-focused="false"] .app-logo { opacity: .45; }
 /* ═══ COMPACT SIDEBAR (small windows) ═════════════════════════════════════ */
 
 @media (max-width: 1180px) {
-  #sidebar { flex-basis: var(--sidebar-compact); padding: 14px 8px 12px; }
+  #sidebar { flex-basis: var(--sidebar-compact); padding: 14px 6px 12px; }
   .side-text { display: none; }
   .side-item { justify-content: center; padding: 11px 0; }
   .side-label { text-align: center; padding-inline: 0; font-size: 9.5px; letter-spacing: .8px; }
+  #platformTiles { --tile-w: 44px; gap: 8px; }
   .app-name { display: none; }
 }
 

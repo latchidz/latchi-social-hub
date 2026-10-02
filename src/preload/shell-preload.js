@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('hub', {
   onWindowState: (cb) => ipcRenderer.on('window:state', (_e, s) => cb(s)),
 
   // platforms
+  getPlatforms: () => ipcRenderer.invoke('platforms:list'),
   selectPlatform: (id) => ipcRenderer.invoke('platform:select', id),
   retryPlatform: (id) => ipcRenderer.invoke('platform:retry', id),
   onPlatformActive: (cb) => ipcRenderer.on('platform:active', (_e, p) => cb(p)),

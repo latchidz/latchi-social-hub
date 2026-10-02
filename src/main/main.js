@@ -106,6 +106,7 @@ function registerIpc() {
   });
 
   // platforms
+  ipcMain.handle('platforms:list', () => pm.platforms.map((p) => ({ id: p.id, name: p.name })));
   ipcMain.handle('platform:select', (_e, id) => {
     if (!PLATFORM_IDS.includes(id)) throw new Error('ipc: invalid platform id');
     return pm.selectPlatform(id);
