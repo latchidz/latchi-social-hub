@@ -158,11 +158,14 @@
       tile.setAttribute('role', 'listitem');
       tile.setAttribute('aria-label', p.name);
       const img = document.createElement('img');
-      img.src = `../../assets/platforms/${p.id}.svg`;
-      img.onerror = () => { img.src = `../../assets/platforms/${p.id}.png`; };
+      img.src = `../../assets/platforms/${p.id}.png`;
+      img.onerror = () => { img.src = `../../assets/platforms/${p.id}.jpg`; };
       img.alt = p.name;
       img.draggable = false;
-      tile.appendChild(img);
+      const name = document.createElement('span');
+      name.className = 'tile-name';
+      name.textContent = p.name;
+      tile.append(img, name);
       wrap.appendChild(tile);
     }
     setActiveSidebar(state.activePlatform);
