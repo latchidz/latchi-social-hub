@@ -128,12 +128,14 @@ body[data-bg="hex"]     .bg-layer { background-image: url('../../assets/backgrou
 
 .ov-banner {
   display: block;
-  width: min(72%, 640px);
-  aspect-ratio: 3 / 1;
+  width: clamp(96px, 13vw, 168px);
+  aspect-ratio: 1 / 1;
   height: auto;
+  border-radius: 22%;
+  object-fit: cover;
   margin-bottom: 4px;
   filter: drop-shadow(0 14px 44px rgba(0, 0, 0, .55));
-  animation: bannerIn 420ms var(--ease, ease-out);
+  animation: bannerIn 420ms ease-out;
 }
 
 @keyframes bannerIn {

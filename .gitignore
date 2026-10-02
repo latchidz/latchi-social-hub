@@ -4,7 +4,9 @@ node_modules/
 # build output (Windows artifacts are built per-release, never committed)
 dist/
 out/
-build/
+build/*
+!build/icon.ico
+!build/icon.png
 release/
 installer/
 
