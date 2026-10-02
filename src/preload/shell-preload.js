@@ -28,6 +28,11 @@ contextBridge.exposeInMainWorld('hub', {
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
   getAppInfo: () => ipcRenderer.invoke('app:info'),
   clearSessions: () => ipcRenderer.invoke('session:clearAll'),
+
+  // backup / restore
+  exportBackup: (password) => ipcRenderer.invoke('backup:export', password),
+  importBackup: (password) => ipcRenderer.invoke('backup:import', password),
+  relaunchApp: () => ipcRenderer.invoke('app:relaunch'),
   getLocale: (lang) => ipcRenderer.invoke('locale:get', lang),
 
   // layout & network

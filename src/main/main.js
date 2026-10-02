@@ -18,6 +18,7 @@ const PlatformManager = require('./platform-manager');
 const SettingsStore = require('./settings-store');
 const { getLocale } = require('./locales');
 const { setupSecurity } = require('./security-manager');
+const backup = require('./backup-manager');
 
 const SMOKE = !app.isPackaged && process.argv.includes('--smoke');
 
@@ -134,6 +135,27 @@ function registerIpc() {
     return out;
   });
   ipcMain.handle('session:clearAll', () => pm.clearAllSessions());
+
+  // backup / restore (encrypted, password-gated; password never persisted)
+  const backupCtx = () => ({
+    settings,
+    platformIds: pm.platforms.map((p) => p.id),
+    partitionNames: [...new Set(pm.platforms.map((p) => p.partition))],
+  });
+  const validPassword = (v) => typeof v === 'string' && v.length >= 4 && v.length <= 256;
+  ipcMain.handle('backup:export', (_e, password) => {
+    if (!validPassword(password)) return { ok: false, error: 'weak-password' };
+    return backup.exportWithDialog(wm.win, password, backupCtx());
+  });
+  ipcMain.handle('backup:import', (_e, password) => {
+    if (!validPassword(password)) return { ok: false, error: 'weak-password' };
+    return backup.importWithDialog(wm.win, password);
+  });
+  ipcMain.handle('app:relaunch', () => {
+    app.relaunch();
+    app.exit(0);
+    return { ok: true };
+  });
   ipcMain.handle('app:info', () => ({
     name: 'LATCHI SOCIAL HUB',
     version: app.getVersion(),

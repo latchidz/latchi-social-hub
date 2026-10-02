@@ -172,6 +172,68 @@
     $('#langModal').addEventListener('click', (e) => {
       if (e.target === $('#langModal')) closePanel();
     });
+
+    bindBackup();
+  }
+
+  /* ── backup: encrypted export / import ────────────────────────────────── */
+
+  let backupMode = null; // 'export' | 'import'
+
+  function openBackupModal(mode) {
+    backupMode = mode;
+    $('#backupModalTitle').textContent = t(mode === 'export' ? 'backup.exportTitle' : 'backup.importTitle');
+    $('#backupModalDesc').textContent = t(mode === 'export' ? 'backup.exportDesc' : 'backup.importDesc');
+    $('#backupPassword').placeholder = t('backup.passwordPlaceholder');
+    $('#backupPassword').value = '';
+    $('#backupModal').hidden = false;
+    setTimeout(() => $('#backupPassword').focus(), 50);
+  }
+
+  function closeBackupModal() {
+    $('#backupModal').hidden = true;
+    $('#backupPassword').value = '';
+    backupMode = null;
+  }
+
+  async function runBackupFlow(password, mode) {
+    if (mode === 'export') {
+      const res = await window.hub.exportBackup(password);
+      if (res && res.ok) showToast(t('backup.exported'));
+      else if (res && res.canceled) { /* user closed the save dialog */ }
+      else if (res && res.error === 'weak-password') showToast(t('backup.weakPassword'));
+      else showToast(t('backup.failed'));
+    } else if (mode === 'import') {
+      const res = await window.hub.importBackup(password);
+      if (res && res.ok) {
+        closePanel();
+        $('#restartModal').hidden = false;
+      } else if (res && res.canceled) { /* user closed the open dialog */ }
+      else if (res && res.error === 'weak-password') showToast(t('backup.weakPassword'));
+      else if (res && res.error === 'wrong-password' || res && res.error === 'bad-file') showToast(t('backup.wrongPassword'));
+      else showToast(t('backup.failed'));
+    }
+  }
+
+  function bindBackup() {
+    $('#btnBackupExport').addEventListener('click', () => openBackupModal('export'));
+    $('#btnBackupImport').addEventListener('click', () => openBackupModal('import'));
+    $('#backupCancel').addEventListener('click', closeBackupModal);
+    $('#backupPassword').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') $('#backupConfirm').click();
+    });
+    $('#backupConfirm').addEventListener('click', async () => {
+      const pwd = $('#backupPassword').value;
+      if (!pwd || pwd.length < 4) { showToast(t('backup.weakPassword')); return; }
+      const mode = backupMode;
+      closeBackupModal();
+      await runBackupFlow(pwd, mode);
+    });
+    $('#backupModal').addEventListener('click', (e) => {
+      if (e.target === $('#backupModal')) closeBackupModal();
+    });
+    $('#restartNow').addEventListener('click', () => window.hub.relaunchApp());
+    $('#restartLater').addEventListener('click', () => { $('#restartModal').hidden = true; });
   }
 
   function renderStartupOptions() {
