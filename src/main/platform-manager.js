@@ -179,7 +179,9 @@ class PlatformManager {
 
     for (const [pid, rec] of this.views) {
       if (pid !== id) rec.view.setVisible(false);
+      rec.lastUsed = pid === id ? Date.now() : (rec.lastUsed || 0);
     }
+    this._maybeTrimCaches(id);
 
     let rec = this.views.get(id);
     if (!rec) {
@@ -258,6 +260,9 @@ class PlatformManager {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
+        // keep media/timers alive when the view is hidden so switching back
+        // to a heavy feed (Instagram/YouTube) never stutters or drops state
+        backgroundThrottling: false,
         // no preload: platform pages must never receive app APIs
       },
     });
@@ -359,6 +364,30 @@ class PlatformManager {
     if (rec.slowTimer) { clearTimeout(rec.slowTimer); rec.slowTimer = null; }
     if (rec.timeoutTimer) { clearTimeout(rec.timeoutTimer); rec.timeoutTimer = null; }
     if (rec.settleTimer) { clearTimeout(rec.settleTimer); rec.settleTimer = null; }
+  }
+
+  /**
+   * LRU HTTP-cache trim: with 8 platforms the accumulated HTTP cache can grow
+   * large. When more than 5 platform views exist, the least-recently-used one
+   * gets its session's HTTP cache cleared. NEVER touches cookies/localStorage
+   * (login sessions survive); skips platforms sharing a partition with the
+   * active platform (Meta group) so an active view never loses its cache.
+   */
+  _maybeTrimCaches(activeId) {
+    if (this.views.size <= 5) return;
+    const active = this.platformById(activeId);
+    let lru = null;
+    for (const [pid, rec] of this.views) {
+      if (pid === activeId) continue;
+      if (!lru || (rec.lastUsed || 0) < (lru.lastUsed || 0)) lru = rec;
+    }
+    if (!lru) return;
+    const lruPlatform = this.platformById(lru.id);
+    if (active && lruPlatform && lruPlatform.partition === active.partition) return;
+    try {
+      session.fromPartition(lruPlatform.partition).clearCache().catch(() => {});
+      lru.cacheTrimmedAt = Date.now();
+    } catch (_e) {}
   }
 
   _applyBounds(view) {

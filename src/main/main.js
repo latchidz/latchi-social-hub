@@ -23,6 +23,14 @@ const SMOKE = !app.isPackaged && process.argv.includes('--smoke');
 
 Menu.setApplicationMenu(null); // no default menu bar for the user
 
+// ── GPU / media performance switches (owner-approved Phase-1 expansion) ──────
+// Heavy feeds (Instagram reels, YouTube) benefit from hardware video decode
+// and GPU rasterization; these are rendering flags only — no security impact.
+app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+
 if (SMOKE) {
   // Dev harness ONLY: never active in packaged builds (app.isPackaged gate),
   // even if --smoke is somehow passed to the production executable.
