@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('hub', {
   onWindowState: (cb) => ipcRenderer.on('window:state', (_e, s) => cb(s)),
 
   // platforms
+  getPlatforms: () => ipcRenderer.invoke('platforms:list'),
   selectPlatform: (id) => ipcRenderer.invoke('platform:select', id),
   retryPlatform: (id) => ipcRenderer.invoke('platform:retry', id),
   onPlatformActive: (cb) => ipcRenderer.on('platform:active', (_e, p) => cb(p)),
@@ -28,6 +29,11 @@ contextBridge.exposeInMainWorld('hub', {
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
   getAppInfo: () => ipcRenderer.invoke('app:info'),
   clearSessions: () => ipcRenderer.invoke('session:clearAll'),
+
+  // backup / restore
+  exportBackup: (password) => ipcRenderer.invoke('backup:export', password),
+  importBackup: (password) => ipcRenderer.invoke('backup:import', password),
+  relaunchApp: () => ipcRenderer.invoke('app:relaunch'),
   getLocale: (lang) => ipcRenderer.invoke('locale:get', lang),
 
   // layout & network

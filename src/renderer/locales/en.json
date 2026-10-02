@@ -3,19 +3,15 @@
   "sidebar.system": "System",
   "sidebar.language": "Language",
   "sidebar.settings": "Settings",
-
   "platform.instagram": "Instagram",
   "platform.facebook": "Facebook",
   "platform.messenger": "Messenger",
   "platform.telegram": "Telegram",
-
   "window.minimize": "Minimize",
   "window.maximize": "Maximize",
   "window.restore": "Restore",
   "window.close": "Close",
-
   "net.offline": "Offline",
-
   "overlay.loading": "Loading…",
   "overlay.connecting": "Still connecting… check your internet if this takes too long",
   "overlay.errorTitle": "Unable to load this platform",
@@ -24,10 +20,8 @@
   "overlay.offlineSub": "Loading will resume automatically once the connection is back.",
   "overlay.timeoutTitle": "The connection is taking longer than expected",
   "overlay.retry": "Retry",
-
   "home.title": "Welcome to LATCHI SOCIAL HUB",
   "home.hint": "Pick a platform from the sidebar to get started",
-
   "settings.title": "Settings",
   "settings.back": "Back",
   "settings.language": "Language",
@@ -44,14 +38,43 @@
   "settings.version": "Version",
   "settings.electron": "Electron version",
   "settings.copyright": "Copyright",
-
   "confirm.clearTitle": "Clear session data?",
   "confirm.clearBody": "You may be signed out from your connected platforms.",
   "confirm.cancel": "Cancel",
   "confirm.clear": "Clear",
-
   "cleared.toast": "Session data cleared",
-
   "lang.ar": "العربية",
-  "lang.en": "English"
+  "lang.en": "English",
+  "platform.whatsapp": "WhatsApp",
+  "platform.gmail": "Gmail",
+  "platform.outlook": "Outlook",
+  "platform.youtube": "YouTube",
+  "settings.backup": "Data & backup",
+  "settings.backupDesc": "Export sign-in sessions and settings to one encrypted file, or restore them on this machine",
+  "settings.backupExport": "Export app data",
+  "settings.backupImport": "Import app data",
+  "settings.backupWarning": "Warning: the backup file contains sensitive sign-in session data — its password is its only protection. Keep it somewhere safe and never share it.",
+  "backup.exportTitle": "Export app data",
+  "backup.exportDesc": "Choose a password to encrypt the backup file (4 characters minimum).",
+  "backup.importTitle": "Import app data",
+  "backup.importDesc": "Enter the backup file password. Current session data will be replaced by the saved copy.",
+  "backup.passwordPlaceholder": "Password",
+  "backup.confirm": "Confirm",
+  "backup.exported": "Backup exported successfully",
+  "backup.imported": "Data imported successfully",
+  "backup.failed": "Operation failed",
+  "backup.wrongPassword": "Wrong password or corrupted file",
+  "backup.weakPassword": "Password too short (4 characters minimum)",
+  "backup.restartTitle": "Imported — restart required",
+  "backup.restartBody": "Sessions and settings were restored. Restart the app to apply the changes.",
+  "backup.restartNow": "Restart now",
+  "backup.restartLater": "Later",
+  "settings.homeBgTitle": "Home screen background",
+  "settings.homeBgHint": "Choose the background of the app start screen.",
+  "settings.bgDefault": "Default",
+  "settings.bgMesh": "Mesh gradient",
+  "settings.bgStripes": "Gold stripes",
+  "settings.bgDots": "Dots",
+  "settings.bgWave": "Waves",
+  "settings.bgHex": "Hexagons"
 }

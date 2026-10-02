@@ -93,24 +93,9 @@
     <div id="mainRow">
       <!-- ═══ SIDEBAR ═══ -->
       <nav id="sidebar" aria-label="LATCHI SOCIAL HUB">
-        <div class="side-section">
+        <div class="side-section side-platforms">
           <div class="side-label" data-i18n="sidebar.platforms">المنصات</div>
-          <button class="side-item" type="button" data-platform="instagram">
-            <span class="side-icon"><svg width="21" height="21"><use href="#l-instagram"/></svg></span>
-            <span class="side-text" data-i18n="platform.instagram">Instagram</span>
-          </button>
-          <button class="side-item" type="button" data-platform="facebook">
-            <span class="side-icon"><svg width="21" height="21"><use href="#l-facebook"/></svg></span>
-            <span class="side-text" data-i18n="platform.facebook">Facebook</span>
-          </button>
-          <button class="side-item" type="button" data-platform="messenger">
-            <span class="side-icon"><svg width="21" height="21"><use href="#l-messenger"/></svg></span>
-            <span class="side-text" data-i18n="platform.messenger">Messenger</span>
-          </button>
-          <button class="side-item" type="button" data-platform="telegram">
-            <span class="side-icon"><svg width="21" height="21"><use href="#l-telegram"/></svg></span>
-            <span class="side-text" data-i18n="platform.telegram">Telegram</span>
-          </button>
+          <div id="platformTiles" class="platform-tiles"></div>
         </div>
 
         <div class="side-section side-bottom">
@@ -154,6 +139,22 @@
             </div>
 
             <div class="card">
+              <div class="card-title" data-i18n="settings.homeBgTitle">خلفية الشاشة الرئيسية</div>
+              <div class="card-desc" data-i18n="settings.homeBgHint">اختر خلفية شاشة البداية للتطبيق.</div>
+              <div class="bg-options" id="homeBgOptions"></div>
+            </div>
+
+            <div class="card">
+              <div class="card-title" data-i18n="settings.backup">البيانات والنسخ الاحتياطي</div>
+              <div class="card-desc" data-i18n="settings.backupDesc">تصدير جلسات الدخول والإعدادات إلى ملف واحد مشفّر، أو استعادتها على هذا الجهاز</div>
+              <div class="opt-row wrap">
+                <button id="btnBackupExport" class="opt" type="button" data-i18n="settings.backupExport">تصدير بيانات التطبيق</button>
+                <button id="btnBackupImport" class="opt" type="button" data-i18n="settings.backupImport">استيراد بيانات التطبيق</button>
+              </div>
+              <div class="backup-warning" data-i18n="settings.backupWarning">تنبيه: ملف النسخة الاحتياطية يحتوي بيانات جلسات دخول حساسة — كلمة السر هي حمايته الوحيدة، فاحفظه في مكان آمن ولا تشاركه.</div>
+            </div>
+
+            <div class="card">
               <div class="card-title" data-i18n="settings.clear">مسح بيانات الجلسات</div>
               <div class="card-desc" data-i18n="settings.clearDesc">يمكن أن يسجّل خروجك من المنصات المتصلة</div>
               <button id="btnClearSessions" class="danger-btn" type="button" data-i18n="settings.clearBtn">مسح البيانات</button>
@@ -193,6 +194,31 @@
       <div class="modal-actions">
         <button id="confirmCancel" class="ghost-btn" type="button" data-i18n="confirm.cancel">إلغاء</button>
         <button id="confirmClear" class="danger-btn" type="button" data-i18n="confirm.clear">مسح</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Backup password modal ═══ -->
+  <div id="backupModal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog">
+      <div class="modal-title" id="backupModalTitle"></div>
+      <div class="modal-body" id="backupModalDesc"></div>
+      <input id="backupPassword" class="backup-input" type="password" autocomplete="off" placeholder="">
+      <div class="modal-actions">
+        <button id="backupCancel" class="ghost-btn" type="button" data-i18n="confirm.cancel">إلغاء</button>
+        <button id="backupConfirm" class="primary-btn" type="button" data-i18n="backup.confirm">تأكيد</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Restart-required modal (after import) ═══ -->
+  <div id="restartModal" class="modal-backdrop" hidden>
+    <div class="modal" role="alertdialog">
+      <div class="modal-title" data-i18n="backup.restartTitle">تم الاستيراد — مطلوب إعادة تشغيل</div>
+      <div class="modal-body" data-i18n="backup.restartBody">أُعيدت بيانات الجلسات والإعدادات. أعد تشغيل التطبيق لتُطبَّق التغييرات.</div>
+      <div class="modal-actions">
+        <button id="restartLater" class="ghost-btn" type="button" data-i18n="backup.restartLater">لاحقاً</button>
+        <button id="restartNow" class="primary-btn" type="button" data-i18n="backup.restartNow">إعادة التشغيل الآن</button>
       </div>
     </div>
   </div>

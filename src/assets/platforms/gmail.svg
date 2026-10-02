@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="600" viewBox="0 0 300 600">
+  <defs>
+    <linearGradient id="tbg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#131C30"/><stop offset="1" stop-color="#0A0D14"/>
+    </linearGradient>
+    <radialGradient id="tglow" cx="0.5" cy="0.42" r="0.55">
+      <stop offset="0" stop-color="#EA4335" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#EA4335" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tgold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#F6D47A"/><stop offset="1" stop-color="#D9A441"/>
+    </linearGradient>
+  </defs>
+  <rect width="300" height="600" rx="28" fill="url(#tbg)"/>
+  <rect width="300" height="600" rx="28" fill="url(#tglow)"/>
+  <rect x="7" y="7" width="286" height="586" rx="23" fill="none" stroke="#F2C14E" stroke-opacity="0.28" stroke-width="2"/>
+  <rect x="105" y="218" width="90" height="64" rx="9" fill="none" stroke="#E9EDF6" stroke-width="5"/>
+      <path d="M109 227 L150 262 L191 227" fill="none" stroke="#EA4335" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="150" cy="284" r="3.4" fill="#4285F4"/>
+      <circle cx="136" cy="284" r="3.4" fill="#EA4335"/>
+      <circle cx="164" cy="284" r="3.4" fill="#34A853"/>
+  <rect x="126" y="344" width="48" height="3.5" rx="1.75" fill="url(#tgold)"/>
+  <text x="150" y="412" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="27" font-weight="600" letter-spacing="2.5" fill="#E9EDF6">Gmail</text>
+</svg>

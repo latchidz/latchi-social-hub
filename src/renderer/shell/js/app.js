@@ -9,6 +9,7 @@
 (function () {
   const state = {
     settings: null,
+    platforms: null,
     strings: null,
     lang: 'ar',
     online: navigator.onLine,
@@ -22,7 +23,22 @@
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
   const t = (key, fb) => window.I18n.t(key, fb);
 
-  const PLATFORM_IDS = ['instagram', 'facebook', 'messenger', 'telegram'];
+  const HOME_BGS = [
+    { id: 'default', key: 'settings.bgDefault', thumb: null },
+    { id: 'mesh',    key: 'settings.bgMesh',    thumb: '../../assets/backgrounds/mesh.svg' },
+    { id: 'stripes', key: 'settings.bgStripes', thumb: '../../assets/backgrounds/stripes.svg' },
+    { id: 'dots',    key: 'settings.bgDots',    thumb: '../../assets/backgrounds/dots.svg' },
+    { id: 'wave',    key: 'settings.bgWave',    thumb: '../../assets/backgrounds/wave.svg' },
+    { id: 'hex',     key: 'settings.bgHex',     thumb: '../../assets/backgrounds/hex.svg' },
+  ];
+
+  // dynamic platform list (from main); fallback mirrors platform-manager order
+  const FALLBACK_PLATFORMS = [
+    { id: 'instagram', name: 'Instagram' }, { id: 'facebook', name: 'Facebook' },
+    { id: 'messenger', name: 'Messenger' }, { id: 'whatsapp', name: 'WhatsApp' },
+    { id: 'gmail', name: 'Gmail' }, { id: 'outlook', name: 'Outlook' },
+    { id: 'youtube', name: 'YouTube' }, { id: 'telegram', name: 'Telegram' },
+  ];
 
   /* ── boot ─────────────────────────────────────────────────────────────── */
 
@@ -39,8 +55,12 @@
     bindEvents();
     observeLayout();
 
+    state.platforms = await loadPlatforms();
+    renderPlatformTiles();
+
     await renderAppInfo();
     renderStartupOptions();
+    renderBackgroundOptions();
     renderLanguageOptions();
     setOnline(navigator.onLine);
 
@@ -56,7 +76,9 @@
     state.strings = await window.hub.getLocale(lang);
     window.I18n.apply(state.strings, lang);
     renderStartupOptions();
+    renderBackgroundOptions();
     renderLanguageOptions();
+    renderPlatformTiles(); // refresh tile tooltips (platform names)
   }
 
   function renderLanguageOptions() {
@@ -104,26 +126,57 @@
   /* ── sidebar ──────────────────────────────────────────────────────────── */
 
   function bindSidebar() {
-    $$('.side-item[data-platform]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        setActiveSidebar(btn.dataset.platform);
-        window.hub.selectPlatform(btn.dataset.platform);
-      });
+    $('#platformTiles').addEventListener('click', (e) => {
+      const tile = e.target.closest('.tile[data-platform]');
+      if (!tile) return;
+      setActiveSidebar(tile.dataset.platform);
+      window.hub.selectPlatform(tile.dataset.platform);
     });
 
     $('#navLanguage').addEventListener('click', () => openPanel('language'));
     $('#navSettings').addEventListener('click', () => openPanel('settings'));
   }
 
+  async function loadPlatforms() {
+    try {
+      const list = await window.hub.getPlatforms();
+      if (Array.isArray(list) && list.length) return list;
+    } catch (_e) { /* fall back to static list */ }
+    return FALLBACK_PLATFORMS;
+  }
+
+  function renderPlatformTiles() {
+    const wrap = $('#platformTiles');
+    if (!wrap || !state.platforms) return;
+    wrap.textContent = '';
+    for (const p of state.platforms) {
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.className = 'tile';
+      tile.dataset.platform = p.id;
+      tile.title = p.name;
+      tile.setAttribute('role', 'listitem');
+      tile.setAttribute('aria-label', p.name);
+      const img = document.createElement('img');
+      img.src = `../../assets/platforms/${p.id}.svg`;
+      img.onerror = () => { img.src = `../../assets/platforms/${p.id}.png`; };
+      img.alt = p.name;
+      img.draggable = false;
+      tile.appendChild(img);
+      wrap.appendChild(tile);
+    }
+    setActiveSidebar(state.activePlatform);
+  }
+
   function setActiveSidebar(id) {
-    $$('.side-item[data-platform]').forEach((btn) => {
+    $$('.tile[data-platform]').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.platform === id);
     });
     const sysActive = state.panel !== null;
     $('#navLanguage').classList.toggle('active', state.panel === 'language');
     $('#navSettings').classList.toggle('active', state.panel === 'settings');
     if (!sysActive) { /* keep as is */ }
-    if (!id) $$('.side-item[data-platform]').forEach((b) => b.classList.remove('active'));
+    if (!id) $$('.tile[data-platform]').forEach((b) => b.classList.remove('active'));
   }
 
   /* ── panels (settings / language) ─────────────────────────────────────── */
@@ -172,6 +225,100 @@
     $('#langModal').addEventListener('click', (e) => {
       if (e.target === $('#langModal')) closePanel();
     });
+
+    bindBackup();
+  }
+
+  /* ── backup: encrypted export / import ────────────────────────────────── */
+
+  let backupMode = null; // 'export' | 'import'
+
+  function openBackupModal(mode) {
+    backupMode = mode;
+    $('#backupModalTitle').textContent = t(mode === 'export' ? 'backup.exportTitle' : 'backup.importTitle');
+    $('#backupModalDesc').textContent = t(mode === 'export' ? 'backup.exportDesc' : 'backup.importDesc');
+    $('#backupPassword').placeholder = t('backup.passwordPlaceholder');
+    $('#backupPassword').value = '';
+    $('#backupModal').hidden = false;
+    setTimeout(() => $('#backupPassword').focus(), 50);
+  }
+
+  function closeBackupModal() {
+    $('#backupModal').hidden = true;
+    $('#backupPassword').value = '';
+    backupMode = null;
+  }
+
+  async function runBackupFlow(password, mode) {
+    if (mode === 'export') {
+      const res = await window.hub.exportBackup(password);
+      if (res && res.ok) showToast(t('backup.exported'));
+      else if (res && res.canceled) { /* user closed the save dialog */ }
+      else if (res && res.error === 'weak-password') showToast(t('backup.weakPassword'));
+      else showToast(t('backup.failed'));
+    } else if (mode === 'import') {
+      const res = await window.hub.importBackup(password);
+      if (res && res.ok) {
+        closePanel();
+        $('#restartModal').hidden = false;
+      } else if (res && res.canceled) { /* user closed the open dialog */ }
+      else if (res && res.error === 'weak-password') showToast(t('backup.weakPassword'));
+      else if (res && res.error === 'wrong-password' || res && res.error === 'bad-file') showToast(t('backup.wrongPassword'));
+      else showToast(t('backup.failed'));
+    }
+  }
+
+  function bindBackup() {
+    $('#btnBackupExport').addEventListener('click', () => openBackupModal('export'));
+    $('#btnBackupImport').addEventListener('click', () => openBackupModal('import'));
+    $('#backupCancel').addEventListener('click', closeBackupModal);
+    $('#backupPassword').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') $('#backupConfirm').click();
+    });
+    $('#backupConfirm').addEventListener('click', async () => {
+      const pwd = $('#backupPassword').value;
+      if (!pwd || pwd.length < 4) { showToast(t('backup.weakPassword')); return; }
+      const mode = backupMode;
+      closeBackupModal();
+      await runBackupFlow(pwd, mode);
+    });
+    $('#backupModal').addEventListener('click', (e) => {
+      if (e.target === $('#backupModal')) closeBackupModal();
+    });
+    $('#restartNow').addEventListener('click', () => window.hub.relaunchApp());
+    $('#restartLater').addEventListener('click', () => { $('#restartModal').hidden = true; });
+  }
+
+  function renderBackgroundOptions() {
+    const wrap = $('#homeBgOptions');
+    if (!wrap) return;
+    wrap.textContent = '';
+    const current = (state.settings && state.settings.homeBackground) || 'default';
+    for (const bg of HOME_BGS) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bg-opt' + (bg.id === current ? ' selected' : '');
+      btn.dataset.bg = bg.id;
+      const thumb = document.createElement('span');
+      thumb.className = 'bg-thumb' + (bg.id === 'default' ? ' bg-thumb-default' : '');
+      if (bg.thumb) {
+        const img = document.createElement('img');
+        img.src = bg.thumb;
+        img.alt = '';
+        img.draggable = false;
+        thumb.appendChild(img);
+      }
+      const name = document.createElement('span');
+      name.className = 'bg-name';
+      name.textContent = t(bg.key, bg.id);
+      btn.append(thumb, name);
+      btn.addEventListener('click', async () => {
+        if (((state.settings || {}).homeBackground) === bg.id) return;
+        state.settings = await window.hub.setSettings({ homeBackground: bg.id });
+        renderBackgroundOptions();
+      });
+      wrap.appendChild(btn);
+    }
   }
 
   function renderStartupOptions() {
@@ -180,7 +327,7 @@
     const opts = [
       { v: 'last', label: t('settings.startup.last') },
       { v: 'home', label: t('settings.startup.home') },
-      ...PLATFORM_IDS.map((id) => ({ v: id, label: t('platform.' + id, id) })),
+      ...(state.platforms || FALLBACK_PLATFORMS).map((p) => ({ v: p.id, label: t('platform.' + p.id, p.name) })),
     ];
     const current = (state.settings && state.settings.startupPlatform) || 'last';
     opts.forEach((o) => {

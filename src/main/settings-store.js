@@ -8,13 +8,18 @@
 const fs = require('fs');
 const path = require('path');
 
-const PLATFORM_IDS = ['instagram', 'facebook', 'messenger', 'telegram'];
+const PLATFORM_IDS = [
+  'instagram', 'facebook', 'messenger', 'telegram',
+  'whatsapp', 'gmail', 'outlook', 'youtube',
+];
 const STARTUP_VALUES = ['last', 'home', ...PLATFORM_IDS];
+const HOME_BG_VALUES = ['default', 'mesh', 'stripes', 'dots', 'wave', 'hex'];
 
 const DEFAULTS = {
   language: 'ar',            // 'ar' | 'en'
   startupPlatform: 'last',   // 'last' | 'home' | platformId
   lastPlatform: null,        // platformId | null
+  homeBackground: 'default', // HOME_BG_VALUES
 };
 
 class SettingsStore {
@@ -49,6 +54,10 @@ class SettingsStore {
     if (patch.startupPlatform !== undefined) {
       if (!STARTUP_VALUES.includes(patch.startupPlatform)) throw new Error('settings: invalid startupPlatform');
       clean.startupPlatform = patch.startupPlatform;
+    }
+    if (patch.homeBackground !== undefined) {
+      if (!HOME_BG_VALUES.includes(patch.homeBackground)) throw new Error('settings: invalid homeBackground');
+      clean.homeBackground = patch.homeBackground;
     }
     if (patch.lastPlatform !== undefined) {
       const v = patch.lastPlatform;

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs><radialGradient id="sg" cx="0.5" cy="0.5" r="0.7"><stop offset="0" stop-color="#121A2C"/><stop offset="1" stop-color="#0A0D14"/></radialGradient></defs>
+  <rect width="1920" height="1080" fill="url(#sg)"/>
+  <g transform="rotate(28 960 540)">
+<path d="M-400 -200 L-400 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M-316 -200 L-316 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M-232 -200 L-232 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M-148 -200 L-148 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M-64 -200 L-64 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M20 -200 L20 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M104 -200 L104 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M188 -200 L188 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M272 -200 L272 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M356 -200 L356 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M440 -200 L440 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M524 -200 L524 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M608 -200 L608 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M692 -200 L692 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M776 -200 L776 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M860 -200 L860 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M944 -200 L944 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M1028 -200 L1028 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M1112 -200 L1112 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M1196 -200 L1196 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M1280 -200 L1280 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M1364 -200 L1364 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M1448 -200 L1448 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M1532 -200 L1532 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M1616 -200 L1616 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M1700 -200 L1700 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M1784 -200 L1784 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M1868 -200 L1868 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M1952 -200 L1952 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M2036 -200 L2036 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M2120 -200 L2120 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M2204 -200 L2204 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M2288 -200 L2288 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+<path d="M2372 -200 L2372 1280" stroke="#F2C14E" stroke-opacity="0.055" stroke-width="2"/>
+  </g>
+</svg>

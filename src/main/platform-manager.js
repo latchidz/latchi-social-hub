@@ -5,8 +5,11 @@
  *
  *  • Each platform is a lazily-created WebContentsView (modern, stable Electron
  *    API — BrowserView is deprecated; <webview> is not used).
- *  • Every platform gets its own `persist:<id>` session partition, so cookies,
- *    localStorage, sessionStorage and cache never mix between platforms.
+ *  • Session partitions: one ISOLATED `persist:<id>` per platform, EXCEPT the
+ *    owner-approved Meta SSO group (Facebook + Messenger + Instagram share
+ *    `persist:meta`) so a Facebook login carries into Messenger and into
+ *    Instagram's "Continue with Facebook" OAuth popup. All other platforms
+ *    (Telegram/WhatsApp/Gmail/Outlook/YouTube) stay fully isolated.
  *  • One shared overlay view (topmost) renders Loading / Connecting / Error /
  *    Offline / Home states so a white screen can never appear.
  *  • A failure in one platform never affects the others: each view is isolated
@@ -23,21 +26,25 @@ const PLATFORMS = [
     id: 'instagram',
     name: 'Instagram',
     url: 'https://www.instagram.com/',
-    partition: 'persist:instagram',
+    // Meta SSO group: instagram.com + facebook.com + messenger.com share one
+    // session so "Continue with Facebook" on Instagram finds the FB cookies
+    // (owner-approved). If a logout conflict is ever proven (documented
+    // evidence), revert this one line to 'persist:instagram'.
+    partition: 'persist:meta',
     domains: ['instagram.com', 'cdninstagram.com', 'ig.me', 'instagr.am'],
   },
   {
     id: 'facebook',
     name: 'Facebook',
     url: 'https://www.facebook.com/',
-    partition: 'persist:facebook',
+    partition: 'persist:meta', // shared with Messenger + Instagram (Meta SSO group)
     domains: ['facebook.com', 'fb.com', 'fbcdn.net', 'fb.me'],
   },
   {
     id: 'messenger',
     name: 'Messenger',
     url: 'https://www.messenger.com/',
-    partition: 'persist:messenger',
+    partition: 'persist:meta', // same session as Facebook → logged in together
     domains: ['messenger.com', 'facebook.com', 'fb.com', 'fbcdn.net', 'm.me'],
   },
   {
@@ -46,6 +53,35 @@ const PLATFORMS = [
     url: 'https://web.telegram.org/',
     partition: 'persist:telegram',
     domains: ['telegram.org', 't.me', 'telegram.me', 'telesco.pe'],
+  },
+  {
+    id: 'whatsapp',
+    name: 'WhatsApp',
+    url: 'https://web.whatsapp.com/',
+    partition: 'persist:whatsapp',
+    domains: ['whatsapp.com', 'whatsapp.net'],
+  },
+  {
+    id: 'gmail',
+    name: 'Gmail',
+    url: 'https://mail.google.com/',
+    partition: 'persist:google',
+    // google.com covers accounts.google.com (sign-in SSO popups)
+    domains: ['google.com', 'gmail.com', 'gstatic.com', 'googleusercontent.com'],
+  },
+  {
+    id: 'outlook',
+    name: 'Outlook',
+    url: 'https://outlook.live.com/',
+    partition: 'persist:microsoft',
+    domains: ['outlook.com', 'live.com', 'microsoft.com', 'microsoftonline.com', 'office.com'],
+  },
+  {
+    id: 'youtube',
+    name: 'YouTube',
+    url: 'https://www.youtube.com/',
+    partition: 'persist:youtube',
+    domains: ['youtube.com', 'youtu.be', 'ytimg.com', 'youtube-nocookie.com'],
   },
 ];
 
@@ -131,6 +167,13 @@ class PlatformManager {
     }
   }
 
+  onHomeBackgroundChanged() {
+    // repaint the home screen background if the overlay is currently visible
+    if (this._overlayShown && this._overlayPayload) {
+      this._renderOverlay(this._overlayPayload.type, this._overlayPayload.platformId);
+    }
+  }
+
   /* ── selection ─────────────────────────────────────────────────────────── */
 
   selectPlatform(id) {
@@ -143,7 +186,9 @@ class PlatformManager {
 
     for (const [pid, rec] of this.views) {
       if (pid !== id) rec.view.setVisible(false);
+      rec.lastUsed = pid === id ? Date.now() : (rec.lastUsed || 0);
     }
+    this._maybeTrimCaches(id);
 
     let rec = this.views.get(id);
     if (!rec) {
@@ -222,6 +267,9 @@ class PlatformManager {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
+        // keep media/timers alive when the view is hidden so switching back
+        // to a heavy feed (Instagram/YouTube) never stutters or drops state
+        backgroundThrottling: false,
         // no preload: platform pages must never receive app APIs
       },
     });
@@ -325,6 +373,30 @@ class PlatformManager {
     if (rec.settleTimer) { clearTimeout(rec.settleTimer); rec.settleTimer = null; }
   }
 
+  /**
+   * LRU HTTP-cache trim: with 8 platforms the accumulated HTTP cache can grow
+   * large. When more than 5 platform views exist, the least-recently-used one
+   * gets its session's HTTP cache cleared. NEVER touches cookies/localStorage
+   * (login sessions survive); skips platforms sharing a partition with the
+   * active platform (Meta group) so an active view never loses its cache.
+   */
+  _maybeTrimCaches(activeId) {
+    if (this.views.size <= 5) return;
+    const active = this.platformById(activeId);
+    let lru = null;
+    for (const [pid, rec] of this.views) {
+      if (pid === activeId) continue;
+      if (!lru || (rec.lastUsed || 0) < (lru.lastUsed || 0)) lru = rec;
+    }
+    if (!lru) return;
+    const lruPlatform = this.platformById(lru.id);
+    if (active && lruPlatform && lruPlatform.partition === active.partition) return;
+    try {
+      session.fromPartition(lruPlatform.partition).clearCache().catch(() => {});
+      lru.cacheTrimmedAt = Date.now();
+    } catch (_e) {}
+  }
+
   _applyBounds(view) {
     const r = this.contentRect;
     if (r.width > 10 && r.height > 10) {
@@ -360,6 +432,7 @@ class PlatformManager {
     const payload = {
       type,
       platformId: platformId || null,
+      homeBackground: this.settings.get('homeBackground') || 'default',
       strings: {
         loading: s['overlay.loading'],
         connecting: s['overlay.connecting'],

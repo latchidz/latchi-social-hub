@@ -3,19 +3,15 @@
   "sidebar.system": "النظام",
   "sidebar.language": "اللغة",
   "sidebar.settings": "الإعدادات",
-
   "platform.instagram": "إنستغرام",
   "platform.facebook": "فيسبوك",
   "platform.messenger": "ماسنجر",
   "platform.telegram": "تيليغرام",
-
   "window.minimize": "تصغير",
   "window.maximize": "تكبير",
   "window.restore": "استعادة",
   "window.close": "إغلاق",
-
   "net.offline": "غير متصل",
-
   "overlay.loading": "جارٍ التحميل…",
   "overlay.connecting": "ما يزال يتصل بالمنصة… تحقق من الإنترنت إن طال الانتظار",
   "overlay.errorTitle": "تعذر تحميل هذه المنصة",
@@ -24,10 +20,8 @@
   "overlay.offlineSub": "سيُستأنف التحميل تلقائياً عند عودة الاتصال.",
   "overlay.timeoutTitle": "استغرق الاتصال وقتاً أطول من اللازم",
   "overlay.retry": "إعادة المحاولة",
-
   "home.title": "مرحباً بك في LATCHI SOCIAL HUB",
   "home.hint": "اختر منصة من القائمة الجانبية للبدء",
-
   "settings.title": "الإعدادات",
   "settings.back": "رجوع",
   "settings.language": "اللغة",
@@ -44,14 +38,43 @@
   "settings.version": "الإصدار",
   "settings.electron": "إصدار Electron",
   "settings.copyright": "الحقوق",
-
   "confirm.clearTitle": "مسح بيانات الجلسات؟",
   "confirm.clearBody": "قد يتم تسجيل خروجك من المنصات المتصلة.",
   "confirm.cancel": "إلغاء",
   "confirm.clear": "مسح",
-
   "cleared.toast": "تم مسح بيانات الجلسات",
-
   "lang.ar": "العربية",
-  "lang.en": "English"
+  "lang.en": "English",
+  "platform.whatsapp": "واتساب",
+  "platform.gmail": "جيميل",
+  "platform.outlook": "آوتلوك",
+  "platform.youtube": "يوتيوب",
+  "settings.backup": "البيانات والنسخ الاحتياطي",
+  "settings.backupDesc": "تصدير جلسات الدخول والإعدادات إلى ملف واحد مشفّر، أو استعادتها على هذا الجهاز",
+  "settings.backupExport": "تصدير بيانات التطبيق",
+  "settings.backupImport": "استيراد بيانات التطبيق",
+  "settings.backupWarning": "تنبيه: ملف النسخة الاحتياطية يحتوي بيانات جلسات دخول حساسة — كلمة السر هي حمايته الوحيدة، فاحفظه في مكان آمن ولا تشاركه.",
+  "backup.exportTitle": "تصدير بيانات التطبيق",
+  "backup.exportDesc": "اختر كلمة سر لتشفير ملف النسخة الاحتياطية (4 أحرف على الأقل).",
+  "backup.importTitle": "استيراد بيانات التطبيق",
+  "backup.importDesc": "أدخل كلمة سر ملف النسخة الاحتياطية. سيُستبدل محتوى الجلسات الحالي بالنسخة المحفوظة.",
+  "backup.passwordPlaceholder": "كلمة السر",
+  "backup.confirm": "تأكيد",
+  "backup.exported": "تم تصدير النسخة الاحتياطية بنجاح",
+  "backup.imported": "تم استيراد البيانات بنجاح",
+  "backup.failed": "فشلت العملية",
+  "backup.wrongPassword": "كلمة السر غير صحيحة أو الملف تالف",
+  "backup.weakPassword": "كلمة السر قصيرة جداً (4 أحرف على الأقل)",
+  "backup.restartTitle": "تم الاستيراد — مطلوب إعادة تشغيل",
+  "backup.restartBody": "أُعيدت بيانات الجلسات والإعدادات. أعد تشغيل التطبيق لتُطبَّق التغييرات.",
+  "backup.restartNow": "إعادة التشغيل الآن",
+  "backup.restartLater": "لاحقاً",
+  "settings.homeBgTitle": "خلفية الشاشة الرئيسية",
+  "settings.homeBgHint": "اختر خلفية شاشة البداية للتطبيق.",
+  "settings.bgDefault": "افتراضي",
+  "settings.bgMesh": "تدرّج شبكي",
+  "settings.bgStripes": "خطوط ذهبية",
+  "settings.bgDots": "نقاط",
+  "settings.bgWave": "أمواج",
+  "settings.bgHex": "خلايا سداسية"
 }

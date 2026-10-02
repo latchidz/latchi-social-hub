@@ -19,3 +19,7 @@ desktop.ini
 test-artifacts/
 __pycache__/
 *.pyc
+
+# encrypted backups are NEVER committed
+*.latchi-backup
+backups/

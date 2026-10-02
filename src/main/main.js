@@ -18,10 +18,19 @@ const PlatformManager = require('./platform-manager');
 const SettingsStore = require('./settings-store');
 const { getLocale } = require('./locales');
 const { setupSecurity } = require('./security-manager');
+const backup = require('./backup-manager');
 
 const SMOKE = !app.isPackaged && process.argv.includes('--smoke');
 
 Menu.setApplicationMenu(null); // no default menu bar for the user
+
+// ── GPU / media performance switches (owner-approved Phase-1 expansion) ──────
+// Heavy feeds (Instagram reels, YouTube) benefit from hardware video decode
+// and GPU rasterization; these are rendering flags only — no security impact.
+app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
 
 if (SMOKE) {
   // Dev harness ONLY: never active in packaged builds (app.isPackaged gate),
@@ -97,6 +106,7 @@ function registerIpc() {
   });
 
   // platforms
+  ipcMain.handle('platforms:list', () => pm.platforms.map((p) => ({ id: p.id, name: p.name })));
   ipcMain.handle('platform:select', (_e, id) => {
     if (!PLATFORM_IDS.includes(id)) throw new Error('ipc: invalid platform id');
     return pm.selectPlatform(id);
@@ -123,9 +133,31 @@ function registerIpc() {
     if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('ipc: invalid settings patch');
     const out = settings.set(patch);
     if (patch.language !== undefined) pm.onLanguageChanged();
+    if (patch.homeBackground !== undefined) pm.onHomeBackgroundChanged();
     return out;
   });
   ipcMain.handle('session:clearAll', () => pm.clearAllSessions());
+
+  // backup / restore (encrypted, password-gated; password never persisted)
+  const backupCtx = () => ({
+    settings,
+    platformIds: pm.platforms.map((p) => p.id),
+    partitionNames: [...new Set(pm.platforms.map((p) => p.partition))],
+  });
+  const validPassword = (v) => typeof v === 'string' && v.length >= 4 && v.length <= 256;
+  ipcMain.handle('backup:export', (_e, password) => {
+    if (!validPassword(password)) return { ok: false, error: 'weak-password' };
+    return backup.exportWithDialog(wm.win, password, backupCtx());
+  });
+  ipcMain.handle('backup:import', (_e, password) => {
+    if (!validPassword(password)) return { ok: false, error: 'weak-password' };
+    return backup.importWithDialog(wm.win, password);
+  });
+  ipcMain.handle('app:relaunch', () => {
+    app.relaunch();
+    app.exit(0);
+    return { ok: true };
+  });
   ipcMain.handle('app:info', () => ({
     name: 'LATCHI SOCIAL HUB',
     version: app.getVersion(),
