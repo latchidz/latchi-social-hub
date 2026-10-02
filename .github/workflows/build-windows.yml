@@ -1,0 +1,55 @@
+name: build-windows
+
+# Windows x64 release build (NSIS Setup + Portable + SHA256 checksums).
+# Trigger: push a version tag — bump package.json, commit, then:
+#   git tag vX.Y.Z && git push origin vX.Y.Z
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows-x64:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build Windows x64 (NSIS Setup + Portable)
+        run: npm run dist:win
+
+      - name: Generate SHA-256 checksums
+        shell: bash
+        run: |
+          cd dist
+          sha256sum LATCHI-SOCIAL-HUB-*.exe | tee SHA256SUMS.txt
+
+      - name: Create GitHub Release and upload artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            dist/LATCHI-SOCIAL-HUB-Setup-*.exe \
+            dist/LATCHI-SOCIAL-HUB-Portable-*.exe \
+            dist/SHA256SUMS.txt \
+            --title "LATCHI SOCIAL HUB ${{ github.ref_name }}" \
+            --notes "Windows 10/11 x64 — version 0.1.0
+
+          الملفات:
+          - LATCHI-SOCIAL-HUB-Setup-0.1.0.exe — المثبّت (اختيار مسار التثبيت، اختصار قائمة ابدأ، اختصار سطح المكتب، إزالة نظيفة تحافظ على بيانات المستخدم)
+          - LATCHI-SOCIAL-HUB-Portable-0.1.0.exe — النسخة المحمولة (ملف واحد بلا تثبيت)
+          - SHA256SUMS.txt — بصمات التحقق من سلامة الملفات
+
+          تنبيه: البناء غير موقّع — قد يُظهر SmartScreen تحذير Unknown publisher عند أول تشغيل: More info ثم Run anyway."
