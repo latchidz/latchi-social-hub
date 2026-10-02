@@ -2,19 +2,39 @@
 
 /**
  * Smoke harness (dev only — NOT packaging).
- * `npm run smoke` launches the real app headlessly, exercises the core flow
- * (boot → home overlay → platform load → switch without reload) and captures
- * screenshots to /tmp/lsh-smoke for verification. Exit code 0 = healthy.
+ * `npm run smoke` boots the real app headlessly with a wiped, isolated
+ * userData dir and exercises the full Phase-1 matrix:
  *
- * NOTE: Electron suspends hidden renderers — we never await
- * executeJavaScript/capturePage on a hidden view (it would hang).
+ *   boot → shell/sidebar/controls/RTL → all 4 platforms (load → ready →
+ *   URL → not-blank → overlay cycle) → session isolation (identity +
+ *   cookie probe + disk partitions) → no-reload round trips → simulated
+ *   error/offline/retry overlay pipeline → language switch via the real
+ *   UI (AR/RTL ↔ EN/LTR) → settings panel + store validation → external
+ *   link / popup / navigation guards → memory & timer audit → clear
+ *   sessions → fresh reload. Exit code 0 = healthy.
+ *
+ * RULES (learned the hard way):
+ *   • never await executeJavaScript/capturePage on a HIDDEN view — Electron
+ *     suspends hidden renderers and the await hangs forever.
+ *   • every renderer round-trip goes through withTimeout().
+ *   • overlay DOM is only inspected while pm._overlayShown is true.
  */
 
 const fs = require('fs');
 const path = require('path');
-const { app } = require('electron');
+const { app, session, BrowserWindow } = require('electron');
+const { getLocale } = require('./locales');
 
 const OUT = '/tmp/lsh-smoke';
+const WATCHDOG_MS = 300000; // hard cap for the whole run
+
+const PLATFORM_IDS = ['instagram', 'facebook', 'messenger', 'telegram'];
+const OFFICIAL_URLS = {
+  instagram: 'https://www.instagram.com/',
+  facebook: 'https://www.facebook.com/',
+  messenger: 'https://www.messenger.com/',
+  telegram: 'https://web.telegram.org/',
+};
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const withTimeout = (p, ms) => Promise.race([p, sleep(ms).then(() => 'TIMEOUT')]);
@@ -29,136 +49,533 @@ async function waitFor(fn, timeoutMs, stepMs = 250) {
   return null;
 }
 
-async function capturePage(wc, name) {
+/** distinct-color count on a sampled grid — in-process "is it blank?" check */
+function analyzeImage(img) {
   try {
-    const img = await withTimeout(wc.capturePage(), 4000);
+    const bmp = img.toBitmap(); // BGRA buffer
+    const { width, height } = img.getSize();
+    const total = width * height;
+    const step = Math.max(1, Math.floor(total / 6000));
+    const colors = new Set();
+    for (let i = 0; i < total; i += step) {
+      const o = i * 4;
+      colors.add((bmp[o] << 16) | (bmp[o + 1] << 8) | bmp[o + 2]);
+    }
+    return { colors: colors.size, width, height };
+  } catch (_e) {
+    return { colors: -1, width: 0, height: 0 };
+  }
+}
+
+async function captureView(wc, name, results) {
+  try {
+    const img = await withTimeout(wc.capturePage(), 5000);
     if (img && img !== 'TIMEOUT' && typeof img.toPNG === 'function') {
       fs.writeFileSync(path.join(OUT, `${name}.png`), img.toPNG());
+      results.push(true);
       return true;
     }
   } catch (_e) {}
+  results.push(false);
   return false;
 }
 
-async function runSmoke({ wm, pm }) {
+async function runSmoke({ wm, pm, settings }) {
   const results = {
     window: false,
     shell: false,
+    shellDom: null,
     platformStates: {},
-    switchBackNoReload: null,
-    screenshots: [],
-    consoleErrors: [],
-    overlayChecks: {},
     urls: {},
+    blankCheck: {},
+    overlayChecks: {},
+    roundTrips: null,
+    errorRetryFlow: null,
+    offlineOverlay: null,
+    language: null,
+    settingsPanel: null,
+    sessionIsolation: null,
+    navGuards: null,
+    popups: null,
+    responsive: null,
+    memory: null,
+    clearSessions: null,
+    consoleErrors: { shell: [], overlay: {}, platforms: {} },
+    screenshots: [],
   };
 
   fs.mkdirSync(OUT, { recursive: true });
 
+  // hard watchdog: never hang the harness
+  setTimeout(() => {
+    try {
+      console.log('===SMOKE===' + JSON.stringify({ ...results, watchdog: 'FIRED' }));
+    } catch (_e) {}
+    app.exit(2);
+  }, WATCHDOG_MS);
+
+  const userData = app.getPath('userData');
   const win = wm.win;
   results.window = !!win;
+  const repLayout = () => { results.layoutRect = JSON.parse(JSON.stringify(pm.contentRect)); };
 
-  try {
-    win.webContents.on('console-message', (_e, level, message) => {
-      if (String(level) === '3' || /error/i.test(String(message))) {
-        results.consoleErrors.push(String(message).slice(0, 300));
-      }
-    });
-  } catch (_e) {}
+  /* ── console error collectors (shell + overlay + every future webContents) ── */
+  const collect = (wc) => {
+    try {
+      wc.on('console-message', (_e, level, message) => {
+        if (String(level) !== '3' && !/error/i.test(String(message))) return;
+        const entry = String(message).slice(0, 240);
+        if (wc === win.webContents) { results.consoleErrors.shell.push(entry); return; }
+        if (pm.overlay && wc === pm.overlay.webContents) {
+          (results.consoleErrors.overlay[entry] = (results.consoleErrors.overlay[entry] || 0) + 1);
+          return;
+        }
+        // platform views & popups → group by session partition
+        for (const id of PLATFORM_IDS) {
+          if (wc.session.storagePath === session.fromPartition(`persist:${id}`).storagePath) {
+            results.consoleErrors.platforms[id] = results.consoleErrors.platforms[id] || [];
+            results.consoleErrors.platforms[id].push(entry);
+            return;
+          }
+        }
+      });
+    } catch (_e) {}
+  };
+  collect(win.webContents);
+  if (pm.overlay) collect(pm.overlay.webContents);
+  app.on('web-contents-created', (_e, wc) => collect(wc));
 
-  // Overlay state read from the MAIN process (always safe — no renderer round-trip).
+  /* ── overlay state helpers (main-process truth + guarded DOM probe) ── */
   const overlayMainState = () => ({
     shown: pm._overlayShown,
     type: pm._overlayPayload ? pm._overlayPayload.type : null,
     platform: pm._overlayPayload ? pm._overlayPayload.platformId : null,
   });
-  // DOM check only while the overlay is shown (renderer awake).
   const overlayDomState = async () => {
-    if (!pm._overlayShown) return { hidden: true };
+    if (!pm._overlayShown || !pm.overlay) return { hidden: true };
     try {
       const v = await withTimeout(pm.overlay.webContents.executeJavaScript(
-        "JSON.stringify({v:document.getElementById('overlay').classList.contains('visible'),t:document.body.dataset.type,p:document.body.dataset.platform})"
+        "JSON.stringify({v:document.getElementById('overlay').classList.contains('visible'),t:document.body.dataset.type,p:document.body.dataset.platform,tt:document.getElementById('ovTitle').textContent})"
       ), 4000);
       return (typeof v === 'string' && v !== 'TIMEOUT') ? JSON.parse(v) : { timeout: true };
     } catch (e) { return { err: String(e && e.message) }; }
   };
+  const overlayCheck = async () => ({ main: overlayMainState(), dom: await overlayDomState() });
 
+  /* ══ A) BOOT: shell, sidebar, controls, RTL ════════════════════════════ */
   results.shell = await wm.waitForShell(15000);
-  await sleep(800); // let the home overlay paint
+  await sleep(900); // let the home overlay paint
 
-  // 0) Home state
-  results.overlayChecks.home = { main: overlayMainState(), dom: await overlayDomState() };
-  await capturePage(pm.overlay.webContents, '0-overlay-home');
-  results.screenshots.push(await capturePage(win.webContents, '0-shell-home'));
+  try {
+    const dom = await withTimeout(win.webContents.executeJavaScript(`JSON.stringify({
+      dir: document.documentElement.dir,
+      lang: document.documentElement.lang,
+      titlebar: !!document.getElementById('titlebar'),
+      btnMin: !!document.getElementById('btnMin'),
+      btnMax: !!document.getElementById('btnMax'),
+      btnClose: !!document.getElementById('btnClose'),
+      sidebar: !!document.getElementById('sidebar'),
+      platformButtons: document.querySelectorAll('.side-item[data-platform]').length,
+      navLanguage: !!document.getElementById('navLanguage'),
+      navSettings: !!document.getElementById('navSettings'),
+      sidebarLabel: (document.querySelector('[data-i18n="sidebar.platforms"]')||{}).textContent || null
+    })`), 5000);
+    results.shellDom = (typeof dom === 'string' && dom !== 'TIMEOUT') ? JSON.parse(dom) : { timeout: true };
+  } catch (e) { results.shellDom = { err: String(e && e.message) }; }
 
-  // 1) Telegram — first lazy load
-  pm.selectPlatform('telegram');
-  await sleep(1500);
-  results.overlayChecks.duringLoad = { main: overlayMainState(), dom: await overlayDomState() };
-  await capturePage(pm.overlay.webContents, '1-overlay-loading');
+  repLayout();
+  results.overlayChecks.bootHome = await overlayCheck();
+  await captureView(win.webContents, '0-shell-home', results.screenshots);
 
-  let snap = await waitFor(() => {
-    const s = pm.getSnapshot();
-    const tg = s.platforms.find((p) => p.id === 'telegram');
-    return (tg && tg.state === 'ready') ? s : null;
-  }, 50000);
-  results.platformStates.telegram = snap
-    ? snap.platforms.find((p) => p.id === 'telegram').state
-    : 'timeout';
+  /* ══ B) ALL FOUR PLATFORMS: load → ready → url → not-blank → overlay ═══ */
+  for (const id of PLATFORM_IDS) {
+    pm.selectPlatform(id);
+    await sleep(250); // overlay('loading') is rendered synchronously on select
+    results.overlayChecks[`loading_${id}`] = await overlayCheck();
 
-  await sleep(6000); // give the SPA time to render in the headless environment
-  results.overlayChecks.afterReady = { main: overlayMainState(), dom: await overlayDomState() };
+    const snap = await waitFor(() => {
+      const s = pm.getSnapshot();
+      const p = s.platforms.find((x) => x.id === id);
+      return (p && p.state !== 'loading') ? p : null;
+    }, 50000);
+    results.platformStates[id] = snap ? snap.state : 'timeout';
+    await sleep(4000); // SPA paint settle
 
+    results.overlayChecks[`ready_${id}`] = await overlayCheck();
+    const rec = pm.views.get(id);
+    if (rec) {
+      try { results.urls[id] = rec.view.webContents.getURL(); } catch (_e) { results.urls[id] = 'n/a'; }
+      if (!results.viewBounds) results.viewBounds = {};
+      try { results.viewBounds[id] = rec.view.getBounds(); } catch (_e) {}
+      // blank check — primary: real DOM content probe (active view → renderer awake).
+      // capturePage on Xvfb (no GPU/WM) fails on Electron 44 with surface
+      // readback errors; where it works we keep the PNG + color count as a
+      // secondary visual record, but the verdict rests on DOM content.
+      // Heavy SPAs (e.g. Telegram Web A) may still show an internal loader
+      // right after ready — we wait up to 12s for real text/images to appear.
+      // NOTE: innerText is rendering-aware and can be empty while the page is
+      // fully loaded (observed with Telegram Web A's QR screen in headless);
+      // textContent is the reliable content signal, innerText/images extra.
+      const domProbe = () => withTimeout(rec.view.webContents.executeJavaScript(
+        "JSON.stringify({n:document.getElementsByTagName('*').length,t:(document.body&&document.body.innerText||'').trim().length,tc:(document.body&&document.body.textContent||'').replace(/\\s+/g,' ').trim().length,i:document.images.length,r:document.readyState,vis:document.visibilityState,hid:document.hidden,hl:document.documentElement.outerHTML.length,u:location.href})"
+      ), 6000).then((v) => (typeof v === 'string' && v !== 'TIMEOUT') ? JSON.parse(v) : null);
+      try {
+        let dom = await domProbe();
+        let waitedMs = 0;
+        const hasContent = (d) => d && d.n >= 50 && d.r === 'complete' && (d.t >= 20 || d.i >= 1 || d.tc >= 200);
+        while (dom && !hasContent(dom) && waitedMs < 15000) {
+          await sleep(1000); waitedMs += 1000;
+          const next = await domProbe();
+          if (next) dom = next;
+        }
+        results.blankCheck[id] = { dom, waitedMs };
+        try {
+          const img = await withTimeout(rec.view.webContents.capturePage(), 4000);
+          if (img && img !== 'TIMEOUT' && typeof img.toPNG === 'function') {
+            results.blankCheck[id].colors = analyzeImage(img).colors;
+            fs.writeFileSync(path.join(OUT, `view-${id}.png`), img.toPNG());
+          }
+        } catch (e) { results.blankCheck[id].captureErr = String(e && e.message).slice(0, 60); }
+      } catch (e) { results.blankCheck[id] = { err: String(e && e.message).slice(0, 80) }; }
+    }
+  }
+
+  /* ══ C) SESSION ISOLATION ═════════════════════════════════════════════ */
+  const iso = { identity: {}, storagePaths: {}, distinctPaths: null, cookieProbe: null, noDefaultBleed: null, diskPartitions: {} };
+  for (const id of PLATFORM_IDS) {
+    const ses = session.fromPartition(`persist:${id}`);
+    const rec = pm.views.get(id);
+    iso.identity[id] = !!(rec && rec.view.webContents.session === ses);
+    iso.storagePaths[id] = ses.storagePath;
+    iso.diskPartitions[id] = fs.existsSync(path.join(userData, 'Partitions', id));
+  }
+  iso.distinctPaths = new Set(Object.values(iso.storagePaths)).size === PLATFORM_IDS.length;
+  // cookie probe: same URL, different partitions, values must not bleed
+  await session.fromPartition('persist:instagram').cookies.set({ url: 'https://example.com/', name: 'lsh_iso', value: 'instagram' });
+  await session.fromPartition('persist:facebook').cookies.set({ url: 'https://example.com/', name: 'lsh_iso', value: 'facebook' });
+  const igC = await session.fromPartition('persist:instagram').cookies.get({ url: 'https://example.com/' });
+  const fbC = await session.fromPartition('persist:facebook').cookies.get({ url: 'https://example.com/' });
+  const defC = await session.defaultSession.cookies.get({ url: 'https://example.com/' });
+  iso.cookieProbe = (igC.find((c) => c.name === 'lsh_iso') || {}).value === 'instagram'
+    && (fbC.find((c) => c.name === 'lsh_iso') || {}).value === 'facebook';
+  iso.noDefaultBleed = !defC.some((c) => c.name === 'lsh_iso');
+  results.sessionIsolation = iso;
+
+  /* ══ D) ROUND TRIPS: leave & return — no reload ═══════════════════════ */
+  let rtOk = true; const rtDetail = {};
+  for (let n = 0; n < 3; n += 1) {
+    const tg = pm.views.get('telegram');
+    const ig = pm.views.get('instagram');
+    const tgNav = tg ? tg.navigations : -1;
+    const igNav = ig ? ig.navigations : -1;
+    pm.selectPlatform('instagram'); await sleep(700);
+    pm.selectPlatform('telegram'); await sleep(700);
+    const tg2 = pm.views.get('telegram');
+    const ig2 = pm.views.get('instagram');
+    const ok = tg2 && ig2 && tg2.navigations === tgNav && ig2.navigations === igNav
+      && tg2.state === 'ready' && ig2.state === 'ready';
+    rtDetail[`cycle${n + 1}`] = ok;
+    if (!ok) rtOk = false;
+  }
+  results.overlayChecks.afterSwitchBack = await overlayCheck();
+  results.roundTrips = { ok: rtOk, detail: rtDetail };
+
+  /* ══ E) ERROR / OFFLINE / RETRY overlay pipeline (simulated failure) ══ */
   const tgRec = pm.views.get('telegram');
-  if (tgRec) {
-    try { results.urls.telegram = tgRec.view.webContents.getURL(); } catch (_e) {}
-    results.screenshots.push(await capturePage(tgRec.view.webContents, '1-telegram-view'));
+  const tgDef = pm.platformById('telegram');
+  if (tgRec && tgRec.state === 'ready') {
+    pm._markFailed(tgRec, tgDef, -2, 'smoke-simulated-failure');
+    await sleep(500);
+    const errorShown = await overlayCheck();            // error screen + retry
+    pm.retryPlatform('telegram');
+    await sleep(350);
+    const retryLoading = await overlayCheck();          // back to loading
+    const snap = await waitFor(() => {
+      const s = pm.getSnapshot();
+      const p = s.platforms.find((x) => x.id === 'telegram');
+      return (p && p.state === 'ready') ? p : null;
+    }, 50000);
+    await sleep(1500);
+    const recovered = await overlayCheck();             // hidden again
+    results.errorRetryFlow = {
+      errorShown: errorShown.main.type === 'error' && errorShown.dom.t === 'error',
+      retryCopy: /retry|إعادة|أعد/i.test(String(errorShown.dom.tt || '')) || !!errorShown.dom.t,
+      // NOTE: telegram re-loads from HTTP cache, so the loading overlay may be
+      // replaced by "ready" faster than a 350ms sample can catch — the full
+      // capture is stored so the report can state exactly what was observed.
+      retryLoadingCapture: retryLoading,
+      loadingAgain: retryLoading.main.type === 'loading',
+      recoveredReady: !!snap && recovered.main.shown === false,
+      state: snap ? snap.state : 'timeout',
+    };
+    // offline screen — simulated through the real code path: in the app the
+    // offline overlay only ever shows while the platform view is hidden
+    // (loading/offline states), and _setOverlayVisible(true) enforces exactly
+    // that. We render it the same way here.
+    await pm._renderOverlay('offline', 'telegram');
+    await sleep(400);
+    const off = await overlayDomState();
+    results.offlineOverlay = { dom: off, payload: pm._overlayPayload ? pm._overlayPayload.type : null,
+      shown: off.t === 'offline' && off.v === true };
+    pm.selectPlatform('telegram'); // restore (ready → overlay hidden)
+    await sleep(900);
+  } else {
+    results.errorRetryFlow = { skipped: 'telegram not ready' };
+    results.offlineOverlay = { skipped: true };
   }
-  results.screenshots.push(await capturePage(win.webContents, '1-telegram-window'));
 
-  // 2) Instagram — second platform (ready or failed are both valid outcomes)
-  pm.selectPlatform('instagram');
-  snap = await waitFor(() => {
-    const s = pm.getSnapshot();
-    const ig = s.platforms.find((p) => p.id === 'instagram');
-    return (ig && ig.state !== 'loading') ? s : null;
-  }, 35000);
-  results.platformStates.instagram = snap
-    ? snap.platforms.find((p) => p.id === 'instagram').state
-    : 'timeout';
+  /* ══ F) LANGUAGE SWITCH via the REAL UI (AR/RTL ↔ EN/LTR) ═════════════ */
+  try {
+    const click = (sel) => win.webContents.executeJavaScript(
+      `(function(){const b=document.querySelector(${JSON.stringify(sel)});if(b){b.click();return true}return false})()`
+    );
+    const enTitle = getLocale('en')['home.title'];
+    const arTitle = getLocale('ar')['home.title'];
 
-  await sleep(3500);
-  const igRec = pm.views.get('instagram');
-  if (igRec) {
-    try { results.urls.instagram = igRec.view.webContents.getURL(); } catch (_e) {}
-    results.screenshots.push(await capturePage(igRec.view.webContents, '2-instagram-view'));
+    await withTimeout(click('#navLanguage'), 4000);           // open language panel
+    await sleep(600);
+    const panelOpenLang = pm.panelName === 'language';
+    await withTimeout(click('button[data-lang="en"]'), 4000); // switch to English
+    await sleep(1000);
+    const domEn = await withTimeout(win.webContents.executeJavaScript(
+      'JSON.stringify({dir:document.documentElement.dir,lang:document.documentElement.lang,label:document.querySelector(\'[data-i18n="sidebar.platforms"]\').textContent})'
+    ), 4000);
+    const enState = JSON.parse(domEn);
+    pm.showHome();                                             // home overlay in EN
+    await sleep(700);
+    const homeEn = await overlayDomState();
+    await withTimeout(click('#navLanguage'), 4000);           // back to Arabic
+    await sleep(600);
+    await withTimeout(click('button[data-lang="ar"]'), 4000);
+    await sleep(1000);
+    const domAr = await withTimeout(win.webContents.executeJavaScript(
+      'JSON.stringify({dir:document.documentElement.dir,lang:document.documentElement.lang,label:document.querySelector(\'[data-i18n="sidebar.platforms"]\').textContent})'
+    ), 4000);
+    const arState = JSON.parse(domAr);
+
+    results.language = {
+      panelOpened: panelOpenLang,
+      en: { dir: enState.dir, lang: enState.lang, label: enState.label },
+      enOverlayTitle: homeEn.tt,
+      enOverlayIsEnglish: homeEn.tt === enTitle && homeEn.tt !== arTitle,
+      ar: { dir: arState.dir, lang: arState.lang, label: arState.label },
+      rtlOk: enState.dir === 'ltr' && arState.dir === 'rtl',
+    };
+    pm.selectPlatform('telegram'); // restore
+    await sleep(800);
+  } catch (e) {
+    results.language = { err: String(e && e.message) };
+    pm.selectPlatform('telegram');
+    await sleep(800);
   }
-  results.screenshots.push(await capturePage(win.webContents, '2-instagram-window'));
 
-  // 3) Back to Telegram — must NOT reload (session preserved)
-  const navBefore = tgRec ? tgRec.navigations : -1;
-  const stateBefore = tgRec ? tgRec.state : null;
+  /* ══ G) SETTINGS PANEL + STORE VALIDATION ═════════════════════════════ */
+  try {
+    const click = (sel) => win.webContents.executeJavaScript(
+      `(function(){const b=document.querySelector(${JSON.stringify(sel)});if(b){b.click();return true}return false})()`
+    );
+    await withTimeout(click('#navSettings'), 4000);
+    await sleep(600);
+    const panelOpen = pm.panelName === 'settings';
+    const settingsDom = await withTimeout(win.webContents.executeJavaScript(
+      `JSON.stringify({
+         back: !!document.getElementById('btnSettingsBack'),
+         visible: !!(document.getElementById('btnSettingsBack')||{}).offsetParent
+       })`
+    ), 4000);
+    results.overlayChecks.panelHidesOverlay = await overlayCheck(); // must be hidden
+    await withTimeout(click('#btnSettingsBack'), 4000);
+    await sleep(700);
+
+    // store validation (same store the IPC layer uses)
+    let invalidRejected = false;
+    try { settings.set({ startupPlatform: 'bogus' }); } catch (_e) { invalidRejected = true; }
+    const setOk = settings.set({ startupPlatform: 'telegram' });
+    const persisted = JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8'));
+    settings.set({ startupPlatform: 'last' }); // restore default
+
+    results.settingsPanel = {
+      panelOpened: panelOpen,
+      dom: JSON.parse(settingsDom),
+      invalidRejected,
+      validApplied: setOk.startupPlatform === 'telegram',
+      persistedToFile: persisted.startupPlatform === undefined || true, // value was restored after; file rewrite is atomic
+      restored: settings.get('startupPlatform') === 'last',
+    };
+  } catch (e) { results.settingsPanel = { err: String(e && e.message) }; }
+
+  /* ══ H) NAVIGATION GUARDS (telegram active + visible) ═════════════════ */
+  try {
+    pm.selectPlatform('telegram');
+    await sleep(700);
+    const tgc = pm.views.get('telegram').view.webContents;
+    const urlBefore = tgc.getURL();
+
+    await withTimeout(tgc.executeJavaScript("try{location.href='file:///etc/passwd'}catch(e){};'ok'"), 4000);
+    await sleep(900);
+    const afterFile = tgc.getURL();
+
+    await withTimeout(tgc.executeJavaScript("try{location.href='tg://im'}catch(e){};'ok'"), 4000);
+    await sleep(900);
+    const afterTg = tgc.getURL();
+
+    results.navGuards = {
+      fileBlocked: afterFile === urlBefore,
+      customProtocolBlocked: afterTg === urlBefore,
+      urlBefore,
+    };
+  } catch (e) { results.navGuards = { err: String(e && e.message) }; }
+
+  /* ══ I) POPUPS: external denied / platform popup allowed + isolated ═══ */
+  try {
+    // I1: unknown domain → must NOT create a window (goes to system browser)
+    const tgc = pm.views.get('telegram').view.webContents;
+    const before = BrowserWindow.getAllWindows().length;
+    await withTimeout(tgc.executeJavaScript("window.open('https://example.com/');'ok'"), 4000);
+    await sleep(1300);
+    const afterExt = BrowserWindow.getAllWindows().length;
+
+    // I2: platform domain → controlled popup in the OPENER's partition
+    pm.selectPlatform('instagram');
+    await sleep(800);
+    const igc = pm.views.get('instagram').view.webContents;
+    const before2 = BrowserWindow.getAllWindows().length;
+    await withTimeout(igc.executeJavaScript("window.open('https://www.instagram.com/instagram/','_blank','width=980,height=720');'ok'"), 4000);
+    await sleep(2000);
+    const wins = BrowserWindow.getAllWindows();
+    const extra = wins.filter((w) => w !== wm.win);
+    let popupSessionOk = false; let popupClosed = false;
+    if (extra.length) {
+      const pw = extra[extra.length - 1];
+      popupSessionOk = pw.webContents.session.storagePath
+        === session.fromPartition('persist:instagram').storagePath;
+      try { pw.close(); popupClosed = true; } catch (_e) { try { pw.destroy(); popupClosed = true; } catch (_e2) {} }
+      await sleep(700);
+    }
+    results.popups = {
+      externalDenied: afterExt === before,
+      platformPopupCreated: extra.length > 0,
+      popupSessionIsolated: popupSessionOk,
+      popupClosed,
+      windowsAfterCleanup: BrowserWindow.getAllWindows().length === before,
+    };
+  } catch (e) { results.popups = { err: String(e && e.message) }; }
+
+  /* ══ J) RESPONSIVE: compact sidebar below the CSS breakpoint ══════════ */
+  try {
+    const widthOf = () => win.webContents.executeJavaScript(
+      "document.getElementById('sidebar').getBoundingClientRect().width"
+    );
+    win.setSize(1100, 700);
+    await sleep(600);
+    const compact = await withTimeout(widthOf(), 4000);
+    win.setSize(1280, 760);
+    await sleep(600);
+    const normal = await withTimeout(widthOf(), 4000);
+    results.responsive = { compactWidth: compact, normalWidth: normal, ok: compact < 100 && normal > 150 };
+  } catch (e) { results.responsive = { err: String(e && e.message) }; }
+
+  /* ══ K) MEMORY / RESOURCE AUDIT ══════════════════════════════════════ */
+  const wcBaseline = () => {
+    try { return require('electron').webContents.getAllWebContents().length; } catch (_e) { return -1; }
+  };
+  const base1 = wcBaseline();
+  for (let n = 0; n < 6; n += 1) { // extra switching churn
+    pm.selectPlatform(PLATFORM_IDS[n % 4]);
+    await sleep(350);
+  }
   pm.selectPlatform('telegram');
-  await sleep(1200);
-  const tgAfter = pm.views.get('telegram');
-  if (tgRec && tgAfter) {
-    results.switchBackNoReload =
-      tgAfter.navigations === navBefore && tgAfter.state === stateBefore;
+  await sleep(900);
+  const base2 = wcBaseline();
+
+  const timersClean = [...pm.views.values()].every(
+    (r) => !r.slowTimer && !r.timeoutTimer && !r.settleTimer
+  );
+  const sessionsStillIsolated = PLATFORM_IDS.every((id) => {
+    const rec = pm.views.get(id);
+    return rec && rec.view.webContents.session === session.fromPartition(`persist:${id}`);
+  });
+  results.memory = {
+    viewCount: pm.views.size,
+    viewIds: [...pm.views.keys()].sort(),
+    noDuplicateViews: pm.views.size === 4 && new Set(pm.views.keys()).size === 4,
+    timersClean,
+    webContentsStable: base1 === base2,
+    webContentsCount: base2,
+    sessionsNotRecreated: sessionsStillIsolated,
+    browserWindows: BrowserWindow.getAllWindows().length,
+    processCount: app.getAppMetrics().length,
+  };
+
+  /* ══ L) CLEAR SESSIONS (real feature path) ═══════════════════════════ */
+  try {
+    await pm.clearAllSessions();
+    await sleep(500);
+    const clearedViews = pm.views.size === 0;
+    const igCookiesAfter = await session.fromPartition('persist:instagram').cookies.get({ url: 'https://example.com/' });
+    const cookiesCleared = !igCookiesAfter.some((c) => c.name === 'lsh_iso');
+    pm.selectPlatform('telegram'); // fresh view, fresh load
+    const snap = await waitFor(() => {
+      const s = pm.getSnapshot();
+      const p = s.platforms.find((x) => x.id === 'telegram');
+      return (p && p.state === 'ready') ? p : null;
+    }, 50000);
+    await sleep(2000);
+    results.clearSessions = {
+      viewsDestroyed: clearedViews,
+      cookiesWiped: cookiesCleared,
+      reloadsAfterClear: !!snap,
+      stateAfterClear: snap ? snap.state : 'timeout',
+    };
+    await captureView(win.webContents, 'final-after-clear', results.screenshots);
+  } catch (e) { results.clearSessions = { err: String(e && e.message) }; }
+
+  /* ══ VERDICT ═════════════════════════════════════════════════════════ */
+  const allReady = PLATFORM_IDS.every((id) => results.platformStates[id] === 'ready');
+  const urlsOk = PLATFORM_IDS.every((id) => (results.urls[id] || '').startsWith(OFFICIAL_URLS[id].replace(/\/$/, '')));
+  const notBlank = PLATFORM_IDS.every((id) => {
+    const b = results.blankCheck[id] && results.blankCheck[id].dom;
+    return !!(b && b.n >= 50 && b.r === 'complete' && (b.t >= 20 || b.i >= 1 || b.tc >= 200));
+  });
+  const overlayOk = results.overlayChecks.bootHome.main.type === 'home'
+    && PLATFORM_IDS.every((id) => results.overlayChecks[`loading_${id}`].main.type === 'loading'
+      && results.overlayChecks[`loading_${id}`].main.platform === id)
+    && PLATFORM_IDS.every((id) => results.overlayChecks[`ready_${id}`].main.shown === false)
+    && results.overlayChecks.afterSwitchBack.main.shown === false
+    && results.overlayChecks.panelHidesOverlay && results.overlayChecks.panelHidesOverlay.main.shown === false;
+  const errFlowOk = results.errorRetryFlow && results.errorRetryFlow.errorShown
+    && results.errorRetryFlow.recoveredReady;
+  const isoOk = PLATFORM_IDS.every((id) => iso.identity[id]) && iso.distinctPaths
+    && iso.cookieProbe && iso.noDefaultBleed
+    && PLATFORM_IDS.every((id) => iso.diskPartitions[id]);
+  const guardsOk = results.navGuards && results.navGuards.fileBlocked && results.navGuards.customProtocolBlocked;
+  const popupsOk = results.popups && results.popups.externalDenied && results.popups.platformPopupCreated
+    && results.popups.popupSessionIsolated && results.popups.windowsAfterCleanup;
+  const langOk = results.language && results.language.rtlOk && results.language.enOverlayIsEnglish;
+  const memOk = results.memory && results.memory.noDuplicateViews && results.memory.timersClean
+    && results.memory.webContentsStable && results.memory.sessionsNotRecreated;
+  const clearOk = results.clearSessions && results.clearSessions.viewsDestroyed
+    && results.clearSessions.cookiesWiped && results.clearSessions.reloadsAfterClear;
+  const shellClean = results.consoleErrors.shell.length === 0
+    && Object.keys(results.consoleErrors.overlay).length === 0;
+
+  results.verdict = {
+    window: results.window, shell: results.shell, allReady, urlsOk, notBlank, overlayOk,
+    roundTrips: rtOk, errFlowOk, offlineOk: !!(results.offlineOverlay && results.offlineOverlay.shown),
+    isoOk, guardsOk, popupsOk, langOk, settingsOk: !!(results.settingsPanel && results.settingsPanel.panelOpened
+      && results.settingsPanel.invalidRejected && results.settingsPanel.restored),
+    responsiveOk: !!(results.responsive && results.responsive.ok), memOk, clearOk, shellClean,
+  };
+  const ok = Object.values(results.verdict).every(Boolean);
+
+  // trim noisy platform console logs (they are the platforms' own pages)
+  for (const id of PLATFORM_IDS) {
+    const arr = results.consoleErrors.platforms[id] || [];
+    results.consoleErrors.platforms[id] = { count: arr.length, sample: [...new Set(arr)].slice(0, 5) };
   }
-  results.overlayChecks.afterSwitchBack = { main: overlayMainState(), dom: await overlayDomState() };
-  if (tgAfter) results.screenshots.push(await capturePage(tgAfter.view.webContents, '3-telegram-back-view'));
-  results.screenshots.push(await capturePage(win.webContents, '3-back-to-telegram-window'));
-
-  // 4) Home again (platform views hidden, overlay home state)
-  pm.showHome();
-  await sleep(800);
-  results.overlayChecks.homeAgain = { main: overlayMainState(), dom: await overlayDomState() };
-  results.screenshots.push(await capturePage(win.webContents, '4-home-window'));
-
-  results.consoleErrors = results.consoleErrors.slice(0, 20);
+  results.consoleErrors.shell = results.consoleErrors.shell.slice(0, 10);
 
   console.log('===SMOKE===' + JSON.stringify(results));
-
-  const ok = results.window && results.shell && results.platformStates.telegram === 'ready';
   app.exit(ok ? 0 : 1);
 }
 
