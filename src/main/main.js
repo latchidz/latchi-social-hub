@@ -60,7 +60,7 @@ if (!gotLock) {
 
     if (SMOKE) {
       const { runSmoke } = require('./smoke'); // lazy: dev/CI harness only
-      runSmoke({ wm, pm });
+      runSmoke({ wm, pm, settings });
     }
   });
 
@@ -70,8 +70,9 @@ if (!gotLock) {
   });
 
   app.on('web-contents-created', (_event, wc) => {
-    wc.on('crashed' in wc ? 'crashed' : 'render-process-gone', () => {
-      console.error('[main] renderer gone:', wc.id);
+    // 'crashed' was removed in Electron 29 — 'render-process-gone' is the API.
+    wc.on('render-process-gone', (_e, details) => {
+      console.error('[main] renderer gone:', wc.id, details && details.reason);
     });
   });
 

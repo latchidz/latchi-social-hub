@@ -53,6 +53,15 @@ const SLOW_HINT_MS = 18000;   // switch overlay copy to "still connecting…"
 const LOAD_TIMEOUT_MS = 45000; // give up → error + retry
 const OVERLAY_FADE_MS = 280;
 
+/**
+ * Popup universe: union of ALL platform domains. A window.open from any
+ * platform to any other known platform domain (e.g. Instagram "Login with
+ * Facebook" SSO) opens as a controlled in-app popup in the OPENER's session;
+ * every other target goes to the system browser. This keeps cross-platform
+ * OAuth/login flows working without ever allowing arbitrary windows.
+ */
+const POPUP_DOMAINS = [...new Set(PLATFORMS.flatMap((p) => p.domains))];
+
 class PlatformManager {
   constructor({ windowManager, settings }) {
     this.wm = windowManager;
@@ -64,7 +73,7 @@ class PlatformManager {
     this._overlayShown = false;
     this._overlayPayload = null;
     this._overlayHideTimer = null;
-    this.views = new Map(); // id -> { view, state, everReady, slowTimer, timeoutTimer, navigations }
+    this.views = new Map(); // id -> { view, state, everReady, slowTimer, timeoutTimer, settleTimer, navigations }
     this.activeId = null;
     this.panelName = null;
     this.contentRect = { x: 0, y: 0, width: 0, height: 0 };
@@ -140,21 +149,21 @@ class PlatformManager {
     if (!rec) {
       rec = this._createView(p);
       this.views.set(id, rec);
-      this._toTop(rec.view);
+      this._beginLoad(rec, p); // hides the view; overlay covers the whole load
+    } else if (rec.state === 'ready') {
+      // NOTE: views are never re-inserted into the view tree (no remove+add):
+      // in Electron 44 re-inserting a visible WebContentsView leaves its
+      // renderer stuck at visibilityState 'hidden' (verified experimentally),
+      // which freezes visibility-aware SPAs like Telegram Web. Exactly one
+      // view is visible at a time, so z-order never needs adjusting.
       rec.view.setVisible(true);
-      this._beginLoad(rec, p);
-    } else {
-      this._toTop(rec.view);
-      if (rec.state === 'ready') {
-        rec.view.setVisible(true);
-        this._renderOverlay(null); // instant switch — no loading screen
-      } else if (rec.state === 'loading') {
-        rec.view.setVisible(true);
-        this._renderOverlay('loading', id);
-      } else { // error / offline — view hidden, branded state screen
-        rec.view.setVisible(false);
-        this._renderOverlay(rec.state, id);
-      }
+      this._renderOverlay(null); // instant switch — no loading screen
+    } else if (rec.state === 'loading') {
+      rec.view.setVisible(false);
+      this._renderOverlay('loading', id);
+    } else { // error / offline — view hidden, branded state screen
+      rec.view.setVisible(false);
+      this._renderOverlay(rec.state, id);
     }
 
     this.wm.send('platform:active', { id });
@@ -169,9 +178,7 @@ class PlatformManager {
     if (!rec) return this.selectPlatform(id);
     this.activeId = id;
     if (this.panelName) this.panelName = null;
-    this._toTop(rec.view);
-    rec.view.setVisible(true);
-    this._beginLoad(rec, p);
+    this._beginLoad(rec, p); // hides the view; overlay shows loading/retry state
     this.wm.send('platform:active', { id });
     this._emitState(id);
     return { ok: true };
@@ -189,6 +196,11 @@ class PlatformManager {
   openPanel(name) {
     this.panelName = name;
     for (const [, rec] of this.views) rec.view.setVisible(false);
+    // panels own the content area: the overlay is fully hidden, so its state
+    // flags must reflect that (otherwise a language change while a platform is
+    // still loading would re-show the overlay on top of the panel).
+    this._overlayShown = false;
+    this._overlayPayload = null;
     this._setOverlayVisible(false, true);
   }
 
@@ -202,7 +214,7 @@ class PlatformManager {
   /* ── view lifecycle ────────────────────────────────────────────────────── */
 
   _createView(p) {
-    registerPlatformSession(p.partition, p.domains);
+    registerPlatformSession(p.partition, POPUP_DOMAINS);
 
     const view = new WebContentsView({
       webPreferences: {
@@ -216,7 +228,7 @@ class PlatformManager {
     view.setBackgroundColor('#0A0D14'); // dark, never white
 
     const wc = view.webContents;
-    hardenWebContents(wc, { partition: p.partition, domains: p.domains });
+    hardenWebContents(wc, { partition: p.partition, domains: POPUP_DOMAINS });
 
     const rec = {
       id: p.id,
@@ -242,14 +254,14 @@ class PlatformManager {
     });
 
     this.win.contentView.addChildView(view);
-    this._toTop(this.overlay); // overlay always stays above platform views
     this._applyBounds(view);
-    return rec;
+    return rec; // hidden until ready — the overlay owns the content area meanwhile
   }
 
   _beginLoad(rec, p) {
     this._clearTimers(rec);
     rec.state = 'loading';
+    rec.view.setVisible(false); // the loading overlay owns the content area
     this._renderOverlay('loading', p.id);
 
     rec.slowTimer = setTimeout(() => {
@@ -263,8 +275,11 @@ class PlatformManager {
     }, LOAD_TIMEOUT_MS);
 
     Promise.resolve(rec.view.webContents.loadURL(p.url)).catch((err) => {
-      if (rec.state === 'loading') {
-        this._markFailed(rec, p, -3, String((err && err.message) || err));
+      // ERR_ABORTED fires on redirect chains / cache revalidations — the
+      // navigation is superseded, not failed; did-finish-load still arrives.
+      const msg = String((err && err.message) || err);
+      if (rec.state === 'loading' && !/ERR_ABORTED/i.test(msg)) {
+        this._markFailed(rec, p, -3, msg);
       }
     });
   }
@@ -301,14 +316,7 @@ class PlatformManager {
   _clearTimers(rec) {
     if (rec.slowTimer) { clearTimeout(rec.slowTimer); rec.slowTimer = null; }
     if (rec.timeoutTimer) { clearTimeout(rec.timeoutTimer); rec.timeoutTimer = null; }
-  }
-
-  _toTop(view) {
-    try {
-      const cv = this.win.contentView;
-      cv.removeChildView(view);
-      cv.addChildView(view);
-    } catch (_e) {}
+    if (rec.settleTimer) { clearTimeout(rec.settleTimer); rec.settleTimer = null; }
   }
 
   _applyBounds(view) {
@@ -369,6 +377,12 @@ class PlatformManager {
   _setOverlayVisible(visible, immediate = false) {
     if (!this.overlay) return;
     if (visible) {
+      // The overlay is opaque: it always owns the content area. Hide the
+      // active platform view beneath it — this also guarantees the overlay is
+      // never occluded (an occluded overlay renderer gets no animation frames,
+      // so its fade-in would never run).
+      const rec = this.activeId ? this.views.get(this.activeId) : null;
+      if (rec) { try { rec.view.setVisible(false); } catch (_e) {} }
       try { this.overlay.setVisible(true); } catch (_e) {}
       return;
     }
