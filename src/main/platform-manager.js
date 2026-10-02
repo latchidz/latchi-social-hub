@@ -235,19 +235,25 @@ class PlatformManager {
       view,
       state: 'loading',
       everReady: false,
+      navFailed: false,
       slowTimer: null,
       timeoutTimer: null,
       navigations: 0,
     };
 
-    wc.on('did-start-loading', () => { rec.navigations += 1; });
-    wc.on('did-finish-load', () => this._markReady(rec, p));
+    wc.on('did-start-loading', () => { rec.navigations += 1; rec.navFailed = false; });
+    // NOTE: did-finish-load ALSO fires for Chromium's internal error page
+    // after a failed navigation (e.g. DNS failure) — without the navFailed
+    // guard the platform would be marked "ready" while actually showing an
+    // empty error page (discovered by the offline netns test). Only a
+    // successful navigation may mark the platform ready.
+    wc.on('did-finish-load', () => { if (!rec.navFailed) this._markReady(rec, p); });
     wc.on('did-fail-load', (_e, code, desc, _url, isMainFrame) => {
       // ERR_ABORTED (-3) fires on redirect chains / superseded navigations — not a real failure
-      if (isMainFrame && code !== -3) this._markFailed(rec, p, code, desc);
+      if (isMainFrame && code !== -3) { rec.navFailed = true; this._markFailed(rec, p, code, desc); }
     });
     wc.on('did-fail-provisional-load', (_e, code, desc, _url, isMainFrame) => {
-      if (isMainFrame && code !== -3) this._markFailed(rec, p, code, desc);
+      if (isMainFrame && code !== -3) { rec.navFailed = true; this._markFailed(rec, p, code, desc); }
     });
     wc.on('render-process-gone', (_e, details) => {
       this._markFailed(rec, p, -1, `render-process-gone (${details && details.reason})`);

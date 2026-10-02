@@ -70,6 +70,11 @@ class WindowManager {
     else if (action === 'maximize') {
       if (this.win.isMaximized()) this.win.unmaximize();
       else this.win.maximize();
+    } else if (action === 'restore') {
+      // standard Windows restore semantics: raise from minimized,
+      // or return from maximized to the previous normal size
+      if (this.win.isMinimized()) this.win.restore();
+      else if (this.win.isMaximized()) this.win.unmaximize();
     } else if (action === 'close') this.win.close();
   }
 

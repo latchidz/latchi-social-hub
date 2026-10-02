@@ -76,6 +76,24 @@
     $('#titlebar').addEventListener('dblclick', (e) => {
       if (!e.target.closest('.wc-btn')) window.hub.windowControl('maximize');
     });
+
+    // the middle button reflects the current window state: shows "restore"
+    // when maximized, "maximize" otherwise (icon + localized tooltip)
+    const syncMaxBtn = () => {
+      const maximized = !!state.winMaximized;
+      $('#iconMax').hidden = maximized;
+      $('#iconRestore').hidden = !maximized;
+      $('#btnMax').title = maximized
+        ? window.I18n.t('window.restore', 'Restore')
+        : window.I18n.t('window.maximize', 'Maximize');
+    };
+    window.hub.onWindowState((s) => {
+      state.winMaximized = !!(s && s.maximized);
+      syncMaxBtn();
+    });
+    // re-sync after a language switch (I18n.apply rewrote all static titles)
+    const _applyLang = window.I18n.apply.bind(window.I18n);
+    window.I18n.apply = (strings, lang) => { _applyLang(strings, lang); syncMaxBtn(); };
   }
 
   function renderWindowButtons() {

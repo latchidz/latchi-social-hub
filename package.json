@@ -9,9 +9,67 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "smoke": "electron . --smoke"
+    "smoke": "electron . --smoke",
+    "build:win": "electron-builder --win nsis --x64",
+    "dist:win": "electron-builder --win nsis portable --x64"
   },
   "devDependencies": {
-    "electron": "44.5.1"
+    "electron": "44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.latchi.socialhub",
+    "productName": "LATCHI SOCIAL HUB",
+    "copyright": "© 2026 LATCHI",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "asar": true,
+    "files": [
+      "src/**/*",
+      "!src/main/smoke.js",
+      "assets/**/*",
+      "LICENSE"
+    ],
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeCliInspectArguments": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "onlyLoadAppFromAsar": true
+    },
+    "win": {
+      "icon": "assets/icon.ico",
+      "signExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LATCHI SOCIAL HUB",
+      "uninstallDisplayName": "LATCHI SOCIAL HUB",
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "LATCHI-SOCIAL-HUB-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "LATCHI-SOCIAL-HUB-Portable-${version}.${ext}"
+    }
   }
 }

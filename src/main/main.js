@@ -19,11 +19,13 @@ const SettingsStore = require('./settings-store');
 const { getLocale } = require('./locales');
 const { setupSecurity } = require('./security-manager');
 
-const SMOKE = process.argv.includes('--smoke');
+const SMOKE = !app.isPackaged && process.argv.includes('--smoke');
 
 Menu.setApplicationMenu(null); // no default menu bar for the user
 
 if (SMOKE) {
+  // Dev harness ONLY: never active in packaged builds (app.isPackaged gate),
+  // even if --smoke is somehow passed to the production executable.
   // Isolated, wiped userData per smoke run → deterministic boot state
   // (fresh settings → home overlay at boot, no cached platform sessions).
   const fs = require('fs');
@@ -89,7 +91,7 @@ function registerIpc() {
 
   // window
   ipcMain.handle('window:control', (_e, action) => {
-    if (!['minimize', 'maximize', 'close'].includes(action)) throw new Error('ipc: invalid window action');
+    if (!['minimize', 'maximize', 'restore', 'close'].includes(action)) throw new Error('ipc: invalid window action');
     wm.control(action);
     return { ok: true };
   });

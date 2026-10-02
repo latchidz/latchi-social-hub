@@ -1,7 +1,7 @@
 # dependencies
 node_modules/
 
-# build output (packaging is intentionally not configured in Phase 1)
+# build output (Windows artifacts are built per-release, never committed)
 dist/
 out/
 build/
@@ -17,3 +17,5 @@ desktop.ini
 
 # local test artifacts
 test-artifacts/
+__pycache__/
+*.pyc
