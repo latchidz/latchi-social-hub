@@ -8,7 +8,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const PLATFORM_IDS = ['instagram', 'facebook', 'messenger', 'telegram'];
+const PLATFORM_IDS = [
+  'instagram', 'facebook', 'messenger', 'telegram',
+  'whatsapp', 'gmail', 'outlook', 'youtube',
+];
 const STARTUP_VALUES = ['last', 'home', ...PLATFORM_IDS];
 
 const DEFAULTS = {

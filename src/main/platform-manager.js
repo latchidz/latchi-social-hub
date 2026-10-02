@@ -47,6 +47,35 @@ const PLATFORMS = [
     partition: 'persist:telegram',
     domains: ['telegram.org', 't.me', 'telegram.me', 'telesco.pe'],
   },
+  {
+    id: 'whatsapp',
+    name: 'WhatsApp',
+    url: 'https://web.whatsapp.com/',
+    partition: 'persist:whatsapp',
+    domains: ['whatsapp.com', 'whatsapp.net'],
+  },
+  {
+    id: 'gmail',
+    name: 'Gmail',
+    url: 'https://mail.google.com/',
+    partition: 'persist:google',
+    // google.com covers accounts.google.com (sign-in SSO popups)
+    domains: ['google.com', 'gmail.com', 'gstatic.com', 'googleusercontent.com'],
+  },
+  {
+    id: 'outlook',
+    name: 'Outlook',
+    url: 'https://outlook.live.com/',
+    partition: 'persist:microsoft',
+    domains: ['outlook.com', 'live.com', 'microsoft.com', 'microsoftonline.com', 'office.com'],
+  },
+  {
+    id: 'youtube',
+    name: 'YouTube',
+    url: 'https://www.youtube.com/',
+    partition: 'persist:youtube',
+    domains: ['youtube.com', 'youtu.be', 'ytimg.com', 'youtube-nocookie.com'],
+  },
 ];
 
 const SLOW_HINT_MS = 18000;   // switch overlay copy to "still connecting…"

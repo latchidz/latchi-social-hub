@@ -3,19 +3,15 @@
   "sidebar.system": "النظام",
   "sidebar.language": "اللغة",
   "sidebar.settings": "الإعدادات",
-
   "platform.instagram": "إنستغرام",
   "platform.facebook": "فيسبوك",
   "platform.messenger": "ماسنجر",
   "platform.telegram": "تيليغرام",
-
   "window.minimize": "تصغير",
   "window.maximize": "تكبير",
   "window.restore": "استعادة",
   "window.close": "إغلاق",
-
   "net.offline": "غير متصل",
-
   "overlay.loading": "جارٍ التحميل…",
   "overlay.connecting": "ما يزال يتصل بالمنصة… تحقق من الإنترنت إن طال الانتظار",
   "overlay.errorTitle": "تعذر تحميل هذه المنصة",
@@ -24,10 +20,8 @@
   "overlay.offlineSub": "سيُستأنف التحميل تلقائياً عند عودة الاتصال.",
   "overlay.timeoutTitle": "استغرق الاتصال وقتاً أطول من اللازم",
   "overlay.retry": "إعادة المحاولة",
-
   "home.title": "مرحباً بك في LATCHI SOCIAL HUB",
   "home.hint": "اختر منصة من القائمة الجانبية للبدء",
-
   "settings.title": "الإعدادات",
   "settings.back": "رجوع",
   "settings.language": "اللغة",
@@ -44,14 +38,15 @@
   "settings.version": "الإصدار",
   "settings.electron": "إصدار Electron",
   "settings.copyright": "الحقوق",
-
   "confirm.clearTitle": "مسح بيانات الجلسات؟",
   "confirm.clearBody": "قد يتم تسجيل خروجك من المنصات المتصلة.",
   "confirm.cancel": "إلغاء",
   "confirm.clear": "مسح",
-
   "cleared.toast": "تم مسح بيانات الجلسات",
-
   "lang.ar": "العربية",
-  "lang.en": "English"
+  "lang.en": "English",
+  "platform.whatsapp": "واتساب",
+  "platform.gmail": "جيميل",
+  "platform.outlook": "آوتلوك",
+  "platform.youtube": "يوتيوب"
 }

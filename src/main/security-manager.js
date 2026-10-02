@@ -28,8 +28,27 @@ const { app, session, shell: electronShell } = require('electron');
  * Candidate keys for future, deliberate decisions only:
  *   'media' | 'audioCapture' | 'videoCapture' | 'notifications' | 'geolocation'
  *   'clipboard-sanitized-write' | 'fullscreen' | 'pointerLock' | …
+ *
+ * Phase-1 expansion PRODUCT DECISION (owner-approved 2026-10): WhatsApp and
+ * Messenger Web need camera/microphone for calls and notifications for
+ * message alerts. The grant below is scoped by REQUESTING HOST, never by
+ * session, so the shared Meta partition cannot leak the grant to
+ * facebook.com or instagram.com pages. Every other platform stays deny-all.
  */
-const ALLOWED_PERMISSIONS = new Set([]);
+const CALL_PERMISSIONS = new Set(['media', 'audioCapture', 'videoCapture', 'notifications']);
+const CALL_PERMISSION_HOSTS = new Set([
+  'web.whatsapp.com', 'www.whatsapp.com', 'whatsapp.com',
+  'www.messenger.com', 'messenger.com',
+]);
+
+function isCallPermissionHost(url) {
+  try {
+    const { hostname } = new URL(String(url));
+    return CALL_PERMISSION_HOSTS.has(hostname);
+  } catch (_e) {
+    return false;
+  }
+}
 
 const isWebUrl = (url) => typeof url === 'string' && /^https?:\/\//i.test(url);
 
@@ -62,9 +81,23 @@ function registerPlatformSession(partition, domains) {
   const ses = session.fromPartition(partition);
   sessionRegistry.set(ses, { partition, domains: Array.isArray(domains) ? domains : [] });
 
-  // DENY every permission request and check by default (see ALLOWED_PERMISSIONS).
-  ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
-  ses.setPermissionCheckHandler(() => false);
+  // DENY every permission request and check by default. Only the explicit,
+  // host-scoped call/notification grants for WhatsApp/Messenger may pass.
+  ses.setPermissionRequestHandler((wc, permission, callback) => {
+    try {
+      const url = wc && wc.getURL ? wc.getURL() : '';
+      if (CALL_PERMISSIONS.has(permission) && isCallPermissionHost(url)) return callback(true);
+    } catch (_e) { /* fall through to deny */ }
+    callback(false);
+  });
+  ses.setPermissionCheckHandler((wc, permission, requestingUrl) => {
+    try {
+      const url = requestingUrl || (wc && wc.getURL ? wc.getURL() : '');
+      return CALL_PERMISSIONS.has(permission) && isCallPermissionHost(url);
+    } catch (_e) {
+      return false;
+    }
+  });
 
   // Download policy: no surprises, no dangerous schemes, no arbitrary paths.
   ses.on('will-download', (event, item) => {
@@ -140,7 +173,8 @@ function setupSecurity() {
 }
 
 module.exports = {
-  ALLOWED_PERMISSIONS,
+  CALL_PERMISSIONS,
+  CALL_PERMISSION_HOSTS,
   setupSecurity,
   registerPlatformSession,
   hardenWebContents,

@@ -3,19 +3,15 @@
   "sidebar.system": "System",
   "sidebar.language": "Language",
   "sidebar.settings": "Settings",
-
   "platform.instagram": "Instagram",
   "platform.facebook": "Facebook",
   "platform.messenger": "Messenger",
   "platform.telegram": "Telegram",
-
   "window.minimize": "Minimize",
   "window.maximize": "Maximize",
   "window.restore": "Restore",
   "window.close": "Close",
-
   "net.offline": "Offline",
-
   "overlay.loading": "Loading…",
   "overlay.connecting": "Still connecting… check your internet if this takes too long",
   "overlay.errorTitle": "Unable to load this platform",
@@ -24,10 +20,8 @@
   "overlay.offlineSub": "Loading will resume automatically once the connection is back.",
   "overlay.timeoutTitle": "The connection is taking longer than expected",
   "overlay.retry": "Retry",
-
   "home.title": "Welcome to LATCHI SOCIAL HUB",
   "home.hint": "Pick a platform from the sidebar to get started",
-
   "settings.title": "Settings",
   "settings.back": "Back",
   "settings.language": "Language",
@@ -44,14 +38,15 @@
   "settings.version": "Version",
   "settings.electron": "Electron version",
   "settings.copyright": "Copyright",
-
   "confirm.clearTitle": "Clear session data?",
   "confirm.clearBody": "You may be signed out from your connected platforms.",
   "confirm.cancel": "Cancel",
   "confirm.clear": "Clear",
-
   "cleared.toast": "Session data cleared",
-
   "lang.ar": "العربية",
-  "lang.en": "English"
+  "lang.en": "English",
+  "platform.whatsapp": "WhatsApp",
+  "platform.gmail": "Gmail",
+  "platform.outlook": "Outlook",
+  "platform.youtube": "YouTube"
 }
