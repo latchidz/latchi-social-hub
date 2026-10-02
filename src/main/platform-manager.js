@@ -5,8 +5,11 @@
  *
  *  • Each platform is a lazily-created WebContentsView (modern, stable Electron
  *    API — BrowserView is deprecated; <webview> is not used).
- *  • Every platform gets its own `persist:<id>` session partition, so cookies,
- *    localStorage, sessionStorage and cache never mix between platforms.
+ *  • Session partitions: one ISOLATED `persist:<id>` per platform, EXCEPT the
+ *    owner-approved Meta SSO group (Facebook + Messenger + Instagram share
+ *    `persist:meta`) so a Facebook login carries into Messenger and into
+ *    Instagram's "Continue with Facebook" OAuth popup. All other platforms
+ *    (Telegram/WhatsApp/Gmail/Outlook/YouTube) stay fully isolated.
  *  • One shared overlay view (topmost) renders Loading / Connecting / Error /
  *    Offline / Home states so a white screen can never appear.
  *  • A failure in one platform never affects the others: each view is isolated
@@ -23,21 +26,25 @@ const PLATFORMS = [
     id: 'instagram',
     name: 'Instagram',
     url: 'https://www.instagram.com/',
-    partition: 'persist:instagram',
+    // Meta SSO group: instagram.com + facebook.com + messenger.com share one
+    // session so "Continue with Facebook" on Instagram finds the FB cookies
+    // (owner-approved). If a logout conflict is ever proven (documented
+    // evidence), revert this one line to 'persist:instagram'.
+    partition: 'persist:meta',
     domains: ['instagram.com', 'cdninstagram.com', 'ig.me', 'instagr.am'],
   },
   {
     id: 'facebook',
     name: 'Facebook',
     url: 'https://www.facebook.com/',
-    partition: 'persist:facebook',
+    partition: 'persist:meta', // shared with Messenger + Instagram (Meta SSO group)
     domains: ['facebook.com', 'fb.com', 'fbcdn.net', 'fb.me'],
   },
   {
     id: 'messenger',
     name: 'Messenger',
     url: 'https://www.messenger.com/',
-    partition: 'persist:messenger',
+    partition: 'persist:meta', // same session as Facebook → logged in together
     domains: ['messenger.com', 'facebook.com', 'fb.com', 'fbcdn.net', 'm.me'],
   },
   {
