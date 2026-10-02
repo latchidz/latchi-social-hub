@@ -88,13 +88,23 @@ The renderer never receives `ipcRenderer`; preloads expose a minimal typed API
 
 * Shell + overlay: `contextIsolation`, `sandbox`, `nodeIntegration: false`,
   strict CSP (`default-src 'none'`), devtools closed, navigation denied.
-* Platform sessions: permission allowlist (`notifications`, `media`,
-  `audioCapture`, `videoCapture`, `fullscreen`, `clipboard-sanitized-write`);
-  everything else denied.
-* `setWindowOpenHandler`: same-platform-domain URLs open as controlled popups
-  (same partition, sandboxed, no node); all other URLs go to the system
-  browser via `shell.openExternal`.
-* `will-navigate`: only `http(s)` allowed; custom protocols blocked.
+* Platform sessions: **permissions are denied by default — the allowlist is
+  empty by design.** Camera, microphone, notifications, geolocation,
+  clipboard, media and screen capture are all denied until a specific
+  product decision says otherwise (single, documented place to change:
+  `ALLOWED_PERMISSIONS` in `security-manager.js`).
+* `setWindowOpenHandler`: URLs on any known platform domain (union of all
+  four platforms' domains — keeps cross-platform SSO login flows working)
+  open as controlled popups in the **opener's** partition, sandboxed, no
+  node, no preload; all other URLs go to the system browser via
+  `shell.openExternal`.
+* `will-navigate`: only `http(s)` allowed; `file://`, `javascript:` and
+  custom protocols (`tg://`, …) are blocked.
+* Downloads (`will-download` per platform session): non-`http(s)` sources are
+  cancelled; filenames are sanitized to a basename (no path components, no
+  control characters); the save path is forced into the OS Downloads folder
+  with collision-safe `(n)` suffixes — a page can never pick an arbitrary
+  path or overwrite an existing file.
 * No passwords, tokens or credentials are stored by the app — authentication
   is fully delegated to the platforms' official pages.
 
@@ -112,7 +122,10 @@ correctly between Arabic and English.
 * Platforms are lazy-loaded on first activation only.
 * Loaded views are kept for instant, reload-free switching (verified by the
   smoke harness: switching back does not trigger a new navigation).
-* Timers are cleaned up per view; all views are destroyed on window close.
+* Timers are cleaned up per view (`slowTimer`, `timeoutTimer` and the
+  post-load `settleTimer` are all cleared together); all views are destroyed
+  on window close, and `clearAllSessions` destroys every view before wiping
+  the partitions.
 * The app never starts background work beyond the UI.
 
 ## State machine (per platform)

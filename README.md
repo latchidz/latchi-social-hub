@@ -20,7 +20,7 @@ A unified Windows desktop application that brings **Instagram, Facebook, Messeng
 
 ## Tech Stack
 
-- **Electron** (main + renderer + preload, sandboxed and context-isolated)
+- **Electron 44** (main + renderer + preload, sandboxed and context-isolated) — current stable, fully supported line
 - **JavaScript** (no build step required for Phase 1)
 - **HTML / CSS** (logical properties for full RTL/LTR support)
 - **Node.js** (main process services only)
@@ -71,19 +71,22 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design notes.
 - `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` everywhere.
 - Platform pages run **without any preload** — they never receive app APIs.
 - The preload bridge exposes only a small, typed surface; every IPC channel is validated in the main process.
-- Strict permission allowlist per platform session (calls/notifications allowed; risky permissions denied).
-- Popups: only same-platform-domain windows open in-app; everything else goes to the default system browser.
-- Navigation restricted to `http(s)` — custom protocols are blocked.
+- **Permissions: deny-by-default.** Phase 1 has no verified need for any site permission (camera, microphone, notifications, geolocation, clipboard, media, screen capture are all denied). Granting any permission is an explicit, documented product decision in `security-manager.js`.
+- Popups: `window.open` / `target="_blank"` to any *known platform domain* (including cross-platform SSO such as "Login with Facebook") opens as a controlled, sandboxed in-app window in the opener's session; every other URL goes to the default system browser.
+- Navigation restricted to `http(s)` — `file://`, `javascript:` and custom protocols (`tg://`, `intent://`, …) are blocked.
+- Downloads: `http(s)` only, filename sanitized (path-traversal safe), always saved to the OS Downloads folder with collision-safe naming; anything unexpected is cancelled.
 - DevTools are closed if ever opened; the default menu bar is removed.
 - Strict CSP for all local pages (`default-src 'none'`).
 
 ## Development
 
 ```bash
-npm install     # install dependencies (Electron)
+npm install     # install dependencies (Electron 44 — the binary downloads on first run)
 npm start       # run the app in development mode
-npm run smoke   # headless smoke test: boot → platform load → switching (screenshots in /tmp/lsh-smoke)
+npm run smoke   # headless smoke matrix: all 4 platforms, isolation, security, overlays, memory
 ```
+
+The smoke run uses an isolated, wiped `userData` copy and disables hardware acceleration (headless environments have no GPU); its artifacts land in `/tmp/lsh-smoke`.
 
 No credentials, session data or tokens are stored in this repository. Login sessions live in the app's own `userData` partitions on the user's machine.
 
