@@ -36,6 +36,12 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* The hidden attribute must ALWAYS win over any author display rule.
+   Classic pitfall: .modal-backdrop's display:grid overrode [hidden], so the
+   confirm modal rendered as a fog layer over the whole shell at boot —
+   sidebar unclickable, app looked frozen (found via real mouse-click test). */
+[hidden] { display: none !important; }
+
 .svg-defs { position: absolute; }
 
 html, body { height: 100%; overflow: hidden; }
