@@ -25,7 +25,6 @@
 
   --titlebar-h: 46px;
   --sidebar-w: 128px;
-  --tile-w: 64px;
   --sidebar-compact: 64px;
 
   --font: "Segoe UI", "Segoe UI Arabic", Tahoma, "Helvetica Neue", Arial, sans-serif;
@@ -210,12 +209,11 @@ body[data-focused="false"] .app-logo { opacity: .45; }
 .tile {
   position: relative;
   flex: 0 0 auto;
-  width: var(--tile-w);
-  aspect-ratio: 1 / 2;
-  margin: 0 auto;
+  width: 100%;
+  aspect-ratio: 2 / 1; /* horizontal platform tiles (600x300 art) */
   padding: 0;
   border: 2px solid transparent;
-  border-radius: 24px;
+  border-radius: 16px;
   background: none;
   overflow: hidden;
   cursor: pointer;
@@ -229,7 +227,7 @@ body[data-focused="false"] .app-logo { opacity: .45; }
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 24px;
+  border-radius: 16px;
   pointer-events: none;
 }
 
@@ -239,11 +237,11 @@ body[data-focused="false"] .app-logo { opacity: .45; }
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 10px 4px 7px;
+  padding: 13px 4px 4px;
   background: linear-gradient(180deg, rgba(10, 13, 20, 0) 0%, rgba(10, 13, 20, .88) 58%);
   color: var(--text);
   font-family: var(--font);
-  font-size: 9.5px;
+  font-size: 9px;
   font-weight: 600;
   letter-spacing: .4px;
   text-align: center;
@@ -485,8 +483,11 @@ body[data-focused="false"] .app-logo { opacity: .45; }
   .side-text { display: none; }
   .side-item { justify-content: center; padding: 11px 0; }
   .side-label { text-align: center; padding-inline: 0; font-size: 9.5px; letter-spacing: .8px; }
-  #platformTiles { --tile-w: 44px; gap: 8px; }
-  .tile, .tile img { border-radius: 12px; }
+  #platformTiles { gap: 8px; }
+  /* square center crop keeps the centered logo readable when narrow */
+  .tile { aspect-ratio: 1 / 1; border-radius: 12px; }
+  .tile img { border-radius: 12px; }
+  .tile-name { display: none; }
   .app-name { display: none; }
 }
 

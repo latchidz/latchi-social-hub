@@ -759,7 +759,7 @@ async function runSmoke({ wm, pm, settings }) {
   const tilesOk = !!(results.shellDom && results.shellDom.platformButtons === PLATFORM_IDS.length
     && results.shellDom.tilesWithImg === PLATFORM_IDS.length
     && results.shellDom.tileNames === PLATFORM_IDS.length
-    && results.shellDom.tileRatio >= 1.9 && results.shellDom.tileRatio <= 2.1
+    && results.shellDom.tileRatio >= 0.45 && results.shellDom.tileRatio <= 0.55
     && results.shellDom.backupCard === true && results.shellDom.bgOptions === 2
     && results.shellDom.slideshowToggle === true);
   const slideshowOk = !!(results.homeBackground && !results.homeBackground.err
