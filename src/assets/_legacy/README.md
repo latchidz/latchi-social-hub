@@ -8,3 +8,9 @@
 - `phase1/branding/` — banner.svg + أيقونة التطبيق القديمة (app-icon.png / icon.ico)
 
 للاستعادة: انسخ الملفات من هنا إلى مساراتها الأصلية في `src/assets/`.
+
+## phase2b (Session B)
+
+- البانر القديم (SVG البرمجي) مؤرشف أصلاً في `phase1/branding/banner.svg` منذ Session A.
+- مقاربة Session A (عرض أيقونة التطبيق كعنصر رئيسي بشاشة Home) استُبدلت في Session B
+  ببانر AI فاخر (1200×400) + نص HTML "LATCHI SOCIAL HUB" بخط Cinzel محلي — لا أصول حُذفت.
