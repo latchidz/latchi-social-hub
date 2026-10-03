@@ -91,16 +91,43 @@
     requestAnimationFrame(() => $('#overlay').classList.add('visible'));
   }
 
-  /* ── background slideshow (home screen only) ─────────────────────────── */
+  /* ── background slideshow (home screen only, shuffled) ────────────────── */
 
   const BG_SLIDESHOW_INTERVAL = 3000; // ms between backgrounds
   const BG_FADE_MS = 800;             // cross-fade duration
   let slideshowTimer = null;
   let slideshowGen = 0;               // cancels pending fades on stop/switch
-  let currentBgIndex = 0;
+  let shuffledBackgrounds = [];
+  let currentShuffleIndex = 0;
   let activeBgList = [];
+  let lastShownBg = null;             // guards against immediate repetition
+  let slideshowHistory = [];          // bounded applied-ids trail (debug/verify)
 
   function bgUrl(id) { return `../../assets/backgrounds/${id}.jpg`; }
+
+  function shuffleArray(array) { // Fisher-Yates — a real uniform shuffle
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }
+
+  function reshuffleAvoidingRepeat() {
+    shuffledBackgrounds = shuffleArray(activeBgList);
+    // never repeat the currently shown background first in a fresh order
+    if (shuffledBackgrounds.length > 1 && shuffledBackgrounds[0] === lastShownBg) {
+      [shuffledBackgrounds[0], shuffledBackgrounds[1]] = [shuffledBackgrounds[1], shuffledBackgrounds[0]];
+    }
+  }
+
+  function noteShown(id) {
+    lastShownBg = id;
+    slideshowHistory.push(id);
+    if (slideshowHistory.length > 24) slideshowHistory.shift();
+    syncSlideshowDebug();
+  }
 
   function applyBackground(bgId) {
     const layer = document.getElementById('bgLayer');
@@ -113,6 +140,7 @@
     }
     layer.style.backgroundImage = `url('${bgUrl(bgId)}')`;
     layer.style.opacity = '1';
+    noteShown(bgId);
   }
 
   function applyBackgroundWithFade(bgId) {
@@ -124,20 +152,28 @@
       if (gen !== slideshowGen) return; // stopped/switched meanwhile
       layer.style.backgroundImage = `url('${bgUrl(bgId)}')`;
       layer.style.opacity = '1';
+      noteShown(bgId);
     }, BG_FADE_MS);
   }
 
   function startBackgroundSlideshow(backgrounds) {
     stopBackgroundSlideshow();
-    activeBgList = backgrounds;
-    currentBgIndex = 0;
-    applyBackground(activeBgList[0]);
-    // with a single background there is nothing to rotate — show it
-    // statically and keep the timer off (Session B ships bg-02..bg-10)
-    if (activeBgList.length < 2) { syncSlideshowDebug(); return; }
+    activeBgList = backgrounds || [];
+    if (!activeBgList.length) { applyBackground(null); return; }
+    if (activeBgList.length === 1) {
+      applyBackground(activeBgList[0]); // nothing to rotate
+      return;
+    }
+    reshuffleAvoidingRepeat();
+    currentShuffleIndex = 0;
+    applyBackground(shuffledBackgrounds[0]);
     slideshowTimer = setInterval(() => {
-      currentBgIndex = (currentBgIndex + 1) % activeBgList.length;
-      applyBackgroundWithFade(activeBgList[currentBgIndex]);
+      currentShuffleIndex += 1;
+      if (currentShuffleIndex >= shuffledBackgrounds.length) {
+        reshuffleAvoidingRepeat(); // fresh order every full cycle
+        currentShuffleIndex = 0;
+      }
+      applyBackgroundWithFade(shuffledBackgrounds[currentShuffleIndex]);
     }, BG_SLIDESHOW_INTERVAL);
     syncSlideshowDebug();
   }
@@ -150,7 +186,13 @@
 
   // minimal introspection state for the dev smoke harness
   function syncSlideshowDebug() {
-    window.__lshSlideshow = { active: !!slideshowTimer, list: activeBgList.length };
+    window.__lshSlideshow = {
+      active: !!slideshowTimer,
+      list: activeBgList.length,
+      index: currentShuffleIndex,
+      last: lastShownBg,
+      history: slideshowHistory.slice(-12),
+    };
   }
 
   window.hubOverlay.onShow(render);
