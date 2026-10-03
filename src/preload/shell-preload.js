@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('hub', {
 
   // platforms
   getPlatforms: () => ipcRenderer.invoke('platforms:list'),
+  getBackgrounds: () => ipcRenderer.invoke('backgrounds:list'),
   selectPlatform: (id) => ipcRenderer.invoke('platform:select', id),
   retryPlatform: (id) => ipcRenderer.invoke('platform:retry', id),
   onPlatformActive: (cb) => ipcRenderer.on('platform:active', (_e, p) => cb(p)),

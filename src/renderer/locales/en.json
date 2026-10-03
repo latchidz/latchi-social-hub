@@ -72,9 +72,9 @@
   "settings.homeBgTitle": "Home screen background",
   "settings.homeBgHint": "Choose the background of the app start screen.",
   "settings.bgDefault": "Default",
-  "settings.bgMesh": "Mesh gradient",
-  "settings.bgStripes": "Gold stripes",
-  "settings.bgDots": "Dots",
-  "settings.bgWave": "Waves",
-  "settings.bgHex": "Hexagons"
+  "settings.bg01": "Golden luxury",
+  "settings.slideshow": "Background slideshow",
+  "settings.slideshowOn": "Enabled",
+  "settings.slideshowOff": "Disabled",
+  "settings.slideshowHint": "Auto-rotate backgrounds every 3 seconds on the home screen — only while \"Default\" is selected."
 }

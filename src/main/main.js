@@ -107,6 +107,7 @@ function registerIpc() {
 
   // platforms
   ipcMain.handle('platforms:list', () => pm.platforms.map((p) => ({ id: p.id, name: p.name })));
+  ipcMain.handle('backgrounds:list', () => pm.availableBackgrounds().map((id) => ({ id })));
   ipcMain.handle('platform:select', (_e, id) => {
     if (!PLATFORM_IDS.includes(id)) throw new Error('ipc: invalid platform id');
     return pm.selectPlatform(id);
@@ -134,6 +135,7 @@ function registerIpc() {
     const out = settings.set(patch);
     if (patch.language !== undefined) pm.onLanguageChanged();
     if (patch.homeBackground !== undefined) pm.onHomeBackgroundChanged();
+    if (patch.backgroundSlideshow !== undefined) pm.onHomeBackgroundChanged();
     return out;
   });
   ipcMain.handle('session:clearAll', () => pm.clearAllSessions());

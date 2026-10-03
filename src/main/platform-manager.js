@@ -18,6 +18,7 @@
 
 const path = require('path');
 const { WebContentsView, session, net } = require('electron');
+const fs = require('fs');
 const { getLocale } = require('./locales');
 const { registerPlatformSession, hardenWebContents } = require('./security-manager');
 
@@ -165,6 +166,22 @@ class PlatformManager {
     if (this._overlayShown && this._overlayPayload) {
       this._renderOverlay(this._overlayPayload.type, this._overlayPayload.platformId);
     }
+  }
+
+  /* background assets shipped in src/assets/backgrounds (bg-XX.jpg|png) */
+  availableBackgrounds() {
+    try {
+      const dir = path.join(__dirname, '..', 'assets', 'backgrounds');
+      return fs.readdirSync(dir)
+        .filter((f) => /^bg-\d{2}\.(jpg|png)$/i.test(f))
+        .map((f) => f.replace(/\.(jpg|png)$/i, ''))
+        .sort();
+    } catch (_e) { return []; }
+  }
+
+  _validBackground(v) {
+    const s = String(v || '');
+    return (s === 'default' || /^bg-\d{2}$/.test(s)) ? s : 'default';
   }
 
   onHomeBackgroundChanged() {
@@ -429,10 +446,14 @@ class PlatformManager {
 
     const lang = this.settings.get('language') === 'en' ? 'en' : 'ar';
     const s = getLocale(lang);
+    const homeBackground = this._validBackground(this.settings.get('homeBackground'));
     const payload = {
       type,
       platformId: platformId || null,
-      homeBackground: this.settings.get('homeBackground') || 'default',
+      homeBackground,
+      // slideshow only runs on Home with no specific background chosen
+      slideshow: homeBackground === 'default' && this.settings.get('backgroundSlideshow') !== false,
+      backgrounds: this.availableBackgrounds(),
       strings: {
         loading: s['overlay.loading'],
         connecting: s['overlay.connecting'],

@@ -10,6 +10,7 @@
   const state = {
     settings: null,
     platforms: null,
+    backgrounds: null,
     strings: null,
     lang: 'ar',
     online: navigator.onLine,
@@ -22,15 +23,6 @@
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
   const t = (key, fb) => window.I18n.t(key, fb);
-
-  const HOME_BGS = [
-    { id: 'default', key: 'settings.bgDefault', thumb: null },
-    { id: 'mesh',    key: 'settings.bgMesh',    thumb: '../../assets/backgrounds/mesh.svg' },
-    { id: 'stripes', key: 'settings.bgStripes', thumb: '../../assets/backgrounds/stripes.svg' },
-    { id: 'dots',    key: 'settings.bgDots',    thumb: '../../assets/backgrounds/dots.svg' },
-    { id: 'wave',    key: 'settings.bgWave',    thumb: '../../assets/backgrounds/wave.svg' },
-    { id: 'hex',     key: 'settings.bgHex',     thumb: '../../assets/backgrounds/hex.svg' },
-  ];
 
   // dynamic platform list (from main); fallback mirrors platform-manager order
   const FALLBACK_PLATFORMS = [
@@ -57,10 +49,12 @@
 
     state.platforms = await loadPlatforms();
     renderPlatformTiles();
+    state.backgrounds = await loadBackgrounds();
 
     await renderAppInfo();
     renderStartupOptions();
     renderBackgroundOptions();
+    renderSlideshowToggle();
     renderLanguageOptions();
     setOnline(navigator.onLine);
 
@@ -77,6 +71,7 @@
     window.I18n.apply(state.strings, lang);
     renderStartupOptions();
     renderBackgroundOptions();
+    renderSlideshowToggle();
     renderLanguageOptions();
     renderPlatformTiles(); // refresh tile tooltips (platform names)
   }
@@ -145,6 +140,14 @@
     return FALLBACK_PLATFORMS;
   }
 
+  async function loadBackgrounds() {
+    try {
+      const list = await window.hub.getBackgrounds();
+      if (Array.isArray(list) && list.length) return list;
+    } catch (_e) { /* fall back to the shipped background */ }
+    return [{ id: 'bg-01' }];
+  }
+
   function renderPlatformTiles() {
     const wrap = $('#platformTiles');
     if (!wrap || !state.platforms) return;
@@ -158,11 +161,14 @@
       tile.setAttribute('role', 'listitem');
       tile.setAttribute('aria-label', p.name);
       const img = document.createElement('img');
-      img.src = `../../assets/platforms/${p.id}.svg`;
-      img.onerror = () => { img.src = `../../assets/platforms/${p.id}.png`; };
+      img.src = `../../assets/platforms/${p.id}.png`;
+      img.onerror = () => { img.src = `../../assets/platforms/${p.id}.jpg`; };
       img.alt = p.name;
       img.draggable = false;
-      tile.appendChild(img);
+      const name = document.createElement('span');
+      name.className = 'tile-name';
+      name.textContent = p.name;
+      tile.append(img, name);
       wrap.appendChild(tile);
     }
     setActiveSidebar(state.activePlatform);
@@ -227,6 +233,7 @@
     });
 
     bindBackup();
+    bindSlideshowToggle();
   }
 
   /* ── backup: encrypted export / import ────────────────────────────────── */
@@ -294,7 +301,17 @@
     if (!wrap) return;
     wrap.textContent = '';
     const current = (state.settings && state.settings.homeBackground) || 'default';
-    for (const bg of HOME_BGS) {
+    const bgs = (state.backgrounds && state.backgrounds.length)
+      ? state.backgrounds : [{ id: 'bg-01' }];
+    const entries = [
+      { id: 'default', key: 'settings.bgDefault', thumb: null },
+      ...bgs.map((b) => ({
+        id: b.id,
+        key: 'settings.bg' + b.id.replace('-', ''), // bg-01 → settings.bg01
+        thumb: `../../assets/backgrounds/${b.id}.jpg`,
+      })),
+    ];
+    for (const bg of entries) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'bg-opt' + (bg.id === current ? ' selected' : '');
@@ -316,9 +333,31 @@
         if (((state.settings || {}).homeBackground) === bg.id) return;
         state.settings = await window.hub.setSettings({ homeBackground: bg.id });
         renderBackgroundOptions();
+        renderSlideshowToggle(); // specific choice auto-disables the show
       });
       wrap.appendChild(btn);
     }
+  }
+
+  function renderSlideshowToggle() {
+    const btn = $('#slideshowToggle');
+    if (!btn) return;
+    const on = (state.settings && state.settings.backgroundSlideshow) !== false;
+    const specific = !!((state.settings || {}).homeBackground
+      && state.settings.homeBackground !== 'default');
+    btn.classList.toggle('selected', on);
+    btn.classList.toggle('is-inactive', specific);
+    btn.querySelector('.opt-state').textContent = on ? t('settings.slideshowOn') : t('settings.slideshowOff');
+  }
+
+  function bindSlideshowToggle() {
+    const btn = $('#slideshowToggle');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      const on = (state.settings && state.settings.backgroundSlideshow) !== false;
+      state.settings = await window.hub.setSettings({ backgroundSlideshow: !on });
+      renderSlideshowToggle();
+    });
   }
 
   function renderStartupOptions() {

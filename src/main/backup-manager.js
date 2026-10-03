@@ -191,7 +191,7 @@ function importFromPath(filePath, password) {
   if (manifest.settings && typeof manifest.settings === 'object') {
     try {
       const clean = {};
-      for (const k of ['language', 'startupPlatform', 'lastPlatform', 'homeBackground']) {
+      for (const k of ['language', 'startupPlatform', 'lastPlatform', 'homeBackground', 'backgroundSlideshow']) {
         if (manifest.settings[k] !== undefined) clean[k] = manifest.settings[k];
       }
       fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify(clean, null, 2), 'utf8');

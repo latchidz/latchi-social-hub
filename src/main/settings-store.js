@@ -13,13 +13,14 @@ const PLATFORM_IDS = [
   'whatsapp', 'gmail', 'outlook', 'youtube',
 ];
 const STARTUP_VALUES = ['last', 'home', ...PLATFORM_IDS];
-const HOME_BG_VALUES = ['default', 'mesh', 'stripes', 'dots', 'wave', 'hex'];
+const BG_ID_RE = /^bg-\d{2}$/; // bg-01 .. bg-99 (Session B keeps adding files)
 
 const DEFAULTS = {
   language: 'ar',            // 'ar' | 'en'
   startupPlatform: 'last',   // 'last' | 'home' | platformId
   lastPlatform: null,        // platformId | null
-  homeBackground: 'default', // HOME_BG_VALUES
+  homeBackground: 'default', // 'default' | bg-XX (specific static background)
+  backgroundSlideshow: true, // auto-rotate backgrounds on Home (default on)
 };
 
 class SettingsStore {
@@ -31,7 +32,16 @@ class SettingsStore {
   _read() {
     try {
       const raw = JSON.parse(fs.readFileSync(this.file, 'utf8'));
-      return (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        // drop values that no longer exist (e.g. legacy Phase-1 backgrounds)
+        if (raw.homeBackground !== undefined && raw.homeBackground !== 'default'
+          && !BG_ID_RE.test(raw.homeBackground)) delete raw.homeBackground;
+        if (raw.backgroundSlideshow !== undefined && typeof raw.backgroundSlideshow !== 'boolean') {
+          delete raw.backgroundSlideshow;
+        }
+        return raw;
+      }
+      return {};
     } catch (_e) {
       return {};
     }
@@ -56,8 +66,13 @@ class SettingsStore {
       clean.startupPlatform = patch.startupPlatform;
     }
     if (patch.homeBackground !== undefined) {
-      if (!HOME_BG_VALUES.includes(patch.homeBackground)) throw new Error('settings: invalid homeBackground');
-      clean.homeBackground = patch.homeBackground;
+      const v = patch.homeBackground;
+      if (v !== 'default' && !BG_ID_RE.test(v)) throw new Error('settings: invalid homeBackground');
+      clean.homeBackground = v;
+    }
+    if (patch.backgroundSlideshow !== undefined) {
+      if (typeof patch.backgroundSlideshow !== 'boolean') throw new Error('settings: invalid backgroundSlideshow');
+      clean.backgroundSlideshow = patch.backgroundSlideshow;
     }
     if (patch.lastPlatform !== undefined) {
       const v = patch.lastPlatform;

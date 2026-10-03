@@ -195,6 +195,8 @@ async function runSmoke({ wm, pm, settings }) {
       tileRatio: (() => { const t = document.querySelector('.tile[data-platform]'); if (!t) return null; const r = t.getBoundingClientRect(); return r.width ? +(r.height / r.width).toFixed(2) : null; })(),
       backupCard: !!document.getElementById('btnBackupExport'),
       bgOptions: document.querySelectorAll('#homeBgOptions .bg-opt').length,
+      tileNames: document.querySelectorAll('.tile-name').length,
+      slideshowToggle: !!document.getElementById('slideshowToggle'),
       navLanguage: !!document.getElementById('navLanguage'),
       navSettings: !!document.getElementById('navSettings'),
       sidebarLabel: (document.querySelector('[data-i18n="sidebar.platforms"]')||{}).textContent || null
@@ -206,7 +208,7 @@ async function runSmoke({ wm, pm, settings }) {
   results.overlayChecks.bootHome = await overlayCheck();
   try {
     const brand = await withTimeout(pm.overlay.webContents.executeJavaScript(
-      "JSON.stringify({bannerHidden:document.getElementById('ovBanner').hidden,bannerW:document.getElementById('ovBanner').naturalWidth,logoHidden:document.getElementById('ovLogo').hidden,bg:document.body.dataset.bg||null,bgLayerOn:document.getElementById('bgLayer').classList.contains('on')})"
+      "JSON.stringify({bannerHidden:document.getElementById('ovBanner').hidden,bannerW:document.getElementById('ovBanner').naturalWidth,logoHidden:document.getElementById('ovLogo').hidden,bgImg:(document.getElementById('bgLayer').style.backgroundImage||''),bgOn:document.getElementById('bgLayer').style.opacity==='1',slideshow:window.__lshSlideshow||null})"
     ), 4000);
     results.homeBranding = (typeof brand === 'string' && brand !== 'TIMEOUT') ? JSON.parse(brand) : { timeout: true };
   } catch (e) { results.homeBranding = { err: String(e && e.message) }; }
@@ -553,36 +555,59 @@ async function runSmoke({ wm, pm, settings }) {
     processCount: app.getAppMetrics().length,
   };
 
-  /* ══ L) HOME BACKGROUND SWITCH (T8 — applies instantly) ═══════════════ */
+  /* ══ L) HOME BACKGROUND + SLIDESHOW (T8/F3 — applies instantly) ═══════ */
+  const bgDom = () => withTimeout(pm.overlay.webContents.executeJavaScript(
+    "JSON.stringify({img:(document.getElementById('bgLayer').style.backgroundImage||''),on:document.getElementById('bgLayer').style.opacity==='1',timer:!!(window.__lshSlideshow&&window.__lshSlideshow.active),list:(window.__lshSlideshow&&window.__lshSlideshow.list)||0})"
+  ), 4000).then((v) => (typeof v === 'string' && v !== 'TIMEOUT') ? JSON.parse(v) : null);
+
   try {
     pm.showHome();
     await sleep(600);
-    settings.set({ homeBackground: 'mesh' });
-    pm.onHomeBackgroundChanged(); // same code path the settings:set IPC uses
-    await sleep(700);
-    const meshDom = await withTimeout(pm.overlay.webContents.executeJavaScript(
-      "JSON.stringify({bg:document.body.dataset.bg||null,on:document.getElementById('bgLayer').classList.contains('on')})"
-    ), 4000);
-    settings.set({ homeBackground: 'wave' });
+
+    // default settings → slideshow mode; with a single shipped background
+    // it renders bg-01 statically and keeps the timer OFF
+    const bootBg = await bgDom();
+
+    // T8: explicit static choice
+    settings.set({ homeBackground: 'bg-01' });
     pm.onHomeBackgroundChanged();
     await sleep(700);
-    const waveDom = await withTimeout(pm.overlay.webContents.executeJavaScript(
-      "JSON.stringify({bg:document.body.dataset.bg||null,on:document.getElementById('bgLayer').classList.contains('on')})"
-    ), 4000);
-    settings.set({ homeBackground: 'default' }); // restore
+    const staticBg = await bgDom();
+
+    // F3: slideshow toggle OFF with default choice → no background at all
+    settings.set({ homeBackground: 'default', backgroundSlideshow: false });
     pm.onHomeBackgroundChanged();
-    await sleep(600);
-    const backDom = await withTimeout(pm.overlay.webContents.executeJavaScript(
-      "JSON.stringify({bg:document.body.dataset.bg||null,on:document.getElementById('bgLayer').classList.contains('on')})"
-    ), 4000);
+    await sleep(700);
+    const offBg = await bgDom();
+
+    // F3: toggle back ON → single-bg slideshow shows bg-01 again
+    settings.set({ backgroundSlideshow: true });
+    pm.onHomeBackgroundChanged();
+    await sleep(700);
+    const onBg = await bgDom();
+
+    // invalid values must be rejected by the store
     let invalidBgRejected = false;
     try { settings.set({ homeBackground: 'neon' }); } catch (_e) { invalidBgRejected = true; }
+    let invalidToggleRejected = false;
+    try { settings.set({ backgroundSlideshow: 'yes' }); } catch (_e) { invalidToggleRejected = true; }
+
+    // slideshow must stop the moment a platform takes over the screen
+    pm.selectPlatform('telegram');
+    await sleep(900);
+    const duringPlatform = await bgDom();
+    pm.showHome();
+    await sleep(700);
+    const backHome = await bgDom();
+
     results.homeBackground = {
-      mesh: JSON.parse(meshDom),
-      wave: JSON.parse(waveDom),
-      restored: JSON.parse(backDom),
-      invalidRejected: invalidBgRejected,
-      ok: false, // computed in verdict
+      boot: bootBg,
+      staticChoice: staticBg,
+      toggleOff: offBg,
+      toggleOn: onBg,
+      invalidRejected: invalidBgRejected && invalidToggleRejected,
+      duringPlatform,
+      backHome,
     };
   } catch (e) { results.homeBackground = { err: String(e && e.message) }; }
 
@@ -711,9 +736,12 @@ async function runSmoke({ wm, pm, settings }) {
   const clearOk = results.clearSessions && results.clearSessions.viewsDestroyed
     && results.clearSessions.cookiesWiped && results.clearSessions.reloadsAfterClear;
   const homeBgOk = !!(results.homeBackground && !results.homeBackground.err
-    && results.homeBackground.mesh.bg === 'mesh' && results.homeBackground.mesh.on === true
-    && results.homeBackground.wave.bg === 'wave' && results.homeBackground.wave.on === true
-    && results.homeBackground.restored.bg === null && results.homeBackground.restored.on === false
+    && results.homeBackground.staticChoice && results.homeBackground.staticChoice.on === true
+    && results.homeBackground.staticChoice.img.includes('bg-01.jpg')
+    && results.homeBackground.toggleOff && results.homeBackground.toggleOff.on === false
+    && results.homeBackground.toggleOff.img === ''
+    && results.homeBackground.toggleOn && results.homeBackground.toggleOn.on === true
+    && results.homeBackground.toggleOn.img.includes('bg-01.jpg')
     && results.homeBackground.invalidRejected);
   const backupOk = !!(results.backup && !results.backup.err
     && results.backup.export.ok && results.backup.export.platformCount === PLATFORM_IDS.length
@@ -724,14 +752,22 @@ async function runSmoke({ wm, pm, settings }) {
     && results.backup.filesRestored > 0 && results.backup.cookiesFileRestored
     && results.backup.bytesIdentical && results.backup.settingsRestored);
   const brandingOk = !!(results.homeBranding && results.homeBranding.bannerHidden === false
-    && results.homeBranding.bannerW > 0 && results.homeBranding.logoHidden === true
-    && results.homeBranding.bg === null && results.homeBranding.bgLayerOn === false);
+    && results.homeBranding.bannerW === 1024 && results.homeBranding.logoHidden === true
+    && results.homeBranding.bgImg.includes('bg-01.jpg') && results.homeBranding.bgOn === true);
   const metaSharingOk = !!(iso.metaSharing && iso.metaSharing.sameSessionObject
     && iso.metaSharing.cookieVisibleFromMessenger && iso.metaSharing.notVisibleFromTelegram);
   const tilesOk = !!(results.shellDom && results.shellDom.platformButtons === PLATFORM_IDS.length
     && results.shellDom.tilesWithImg === PLATFORM_IDS.length
-    && results.shellDom.tileRatio >= 1.9 && results.shellDom.tileRatio <= 2.1
-    && results.shellDom.backupCard === true && results.shellDom.bgOptions === 6);
+    && results.shellDom.tileNames === PLATFORM_IDS.length
+    && results.shellDom.tileRatio >= 0.45 && results.shellDom.tileRatio <= 0.55
+    && results.shellDom.backupCard === true && results.shellDom.bgOptions === 2
+    && results.shellDom.slideshowToggle === true);
+  const slideshowOk = !!(results.homeBackground && !results.homeBackground.err
+    && results.homeBackground.boot && results.homeBackground.boot.on === true
+    && results.homeBackground.boot.img.includes('bg-01.jpg')
+    && results.homeBackground.boot.timer === false && results.homeBackground.boot.list === 1
+    && results.homeBackground.duringPlatform && results.homeBackground.duringPlatform.on === false
+    && results.homeBackground.backHome && results.homeBackground.backHome.on === true);
   const shellClean = results.consoleErrors.shell.length === 0
     && Object.keys(results.consoleErrors.overlay).length === 0;
 
@@ -741,7 +777,7 @@ async function runSmoke({ wm, pm, settings }) {
     isoOk, metaSharingOk, guardsOk, popupsOk, langOk, settingsOk: !!(results.settingsPanel && results.settingsPanel.panelOpened
       && results.settingsPanel.invalidRejected && results.settingsPanel.restored),
     responsiveOk: !!(results.responsive && results.responsive.ok), memOk, clearOk, shellClean,
-    homeBgOk, backupOk, brandingOk, tilesOk,
+    homeBgOk, backupOk, brandingOk, tilesOk, slideshowOk,
   };
   const ok = Object.values(results.verdict).every(Boolean);
 
