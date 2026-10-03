@@ -557,7 +557,7 @@ async function runSmoke({ wm, pm, settings }) {
 
   /* ══ L) HOME BACKGROUND + SLIDESHOW (T8/F3 — applies instantly) ═══════ */
   const bgDom = () => withTimeout(pm.overlay.webContents.executeJavaScript(
-    "JSON.stringify({img:(document.getElementById('bgLayer').style.backgroundImage||''),on:document.getElementById('bgLayer').style.opacity==='1',timer:!!(window.__lshSlideshow&&window.__lshSlideshow.active),list:(window.__lshSlideshow&&window.__lshSlideshow.list)||0,history:(window.__lshSlideshow&&window.__lshSlideshow.history)||[]})"
+    "JSON.stringify({img:(document.getElementById('bgLayer').style.backgroundImage||''),on:document.getElementById('bgLayer').style.opacity==='1',perf:!!(window.__lshSlideshow&&window.__lshSlideshow.perf),timer:!!(window.__lshSlideshow&&window.__lshSlideshow.active),list:(window.__lshSlideshow&&window.__lshSlideshow.list)||0,history:(window.__lshSlideshow&&window.__lshSlideshow.history)||[]})"
   ), 4000).then((v) => (typeof v === 'string' && v !== 'TIMEOUT') ? JSON.parse(v) : null);
   const overlayNodeCount = () => withTimeout(pm.overlay.webContents.executeJavaScript(
     "document.getElementsByTagName('*').length"
@@ -604,10 +604,17 @@ async function runSmoke({ wm, pm, settings }) {
     // order randomness evidence, no consecutive repeats, DOM + memory stability
     const domBefore = await overlayNodeCount();
     const memBefore = memKB();
+    const preSoakHistory = (onBg.history || []).slice(); // full trail ≤ 12 here
     await sleep(12500);
     const soakBg = await bgDom();
     const domAfter = await overlayNodeCount();
     const memDeltaKB = memKB() - memBefore;
+    // only entries appended during the soak carry the engine's no-repeat
+    // guarantee (before it, a static user choice may legitimately re-apply
+    // the background the slideshow was already showing)
+    const soakNew = soakBg.history.slice(preSoakHistory.length);
+    const soakBoundaryOk = !soakNew.length
+      || soakNew[0] !== preSoakHistory[preSoakHistory.length - 1];
 
     // slideshow must stop the moment a platform takes over the screen
     pm.selectPlatform('telegram');
@@ -628,7 +635,9 @@ async function runSmoke({ wm, pm, settings }) {
       backHome,
       soak: {
         history: soakBg.history,
-        rotations: soakBg.history.length,
+        newEntries: soakNew,
+        rotations: soakNew.length,
+        boundaryOk: soakBoundaryOk,
         domNodes: { before: domBefore, after: domAfter },
         memDeltaKB,
       },
@@ -793,25 +802,30 @@ async function runSmoke({ wm, pm, settings }) {
 
     // O5 smart video focus — on the active youtube view
     const ytRec = pm.views.get('youtube');
+    const vfDebug = { pre: { focus: pm.videoFocus, size: pm.views.size, active: pm.activeId } };
     let vfNegative = false;
     if (ytRec) {
       // negative: not audible + non-video URL → must NOT enter focus
       delete ytRec.smokeAudible;
       pm.selectPlatform('youtube'); // ensure it's the active platform
       await sleep(400);
+      vfDebug.afterSelect = { focus: pm.videoFocus, size: pm.views.size, active: pm.activeId, audible: (() => { try { return ytRec.view.webContents.isCurrentlyAudible(); } catch (e) { return 'ERR:' + e.message; } })(), url: ytRec.view.webContents.getURL() };
       pm._onMediaEvent('youtube', 'start', pm.views.get('youtube'));
       await sleep(3100); // > 2.5s confirmation window
+      vfDebug.afterNeg = { focus: pm.videoFocus, size: pm.views.size, ids: [...pm.views.keys()] };
       vfNegative = pm.videoFocus === false && pm.views.size === 2;
     }
     // positive: sustained audible playback → focus ON, others released
-    let vfEnter = false, vfBlocker = false;
+    let vfEnter = false, vfBlocker = false, vfBlockerStarted = false;
     const ytRec2 = pm.views.get('youtube');
     if (ytRec2) {
       ytRec2.smokeAudible = true; // dev-harness stand-in for isCurrentlyAudible()
       pm._onMediaEvent('youtube', 'start', ytRec2);
       await sleep(3100);
+      vfDebug.afterPos = { focus: pm.videoFocus, size: pm.views.size, ids: [...pm.views.keys()], blocker: pm._psBlockerId };
       vfEnter = pm.videoFocus === true && pm.views.size === 1 && pm.views.has('youtube');
-      vfBlocker = pm._psBlockerId !== null;
+      vfBlocker = pm._psBlockerId !== null || pm._psBlockerUnavailable === true;
+      vfBlockerStarted = typeof pm._psBlockerId === 'number';
     }
     // exit: switching platform releases the blocker
     pm.selectPlatform('telegram');
@@ -839,7 +853,12 @@ async function runSmoke({ wm, pm, settings }) {
         thirdDestroysOldest: !!ytReady && liveAfter3 === 2 && waDestroyed,
         revisitReloads: !!waAgain && !!tgReady && liveAfterBack === 2,
       },
-      videoFocus: { vfNegative, vfEnter, vfBlocker, vfExit },
+      videoFocus: {
+        vfNegative, vfEnter, vfBlocker, vfExit,
+        blockerStarted: vfBlockerStarted,
+        blockerUnavailable: pm._psBlockerUnavailable === true,
+        debug: vfDebug,
+      },
       liveOff: { pmOff: liveOff, payload: offPayload, dom: offHomeDom },
     };
   } catch (e) { results.perf = { err: String(e && e.message) }; }
@@ -902,7 +921,8 @@ async function runSmoke({ wm, pm, settings }) {
     && results.shellDom.backupCard === true && results.shellDom.bgOptions === 11
     && results.shellDom.slideshowToggle === true);
   const soak = (results.homeBackground && results.homeBackground.soak) || {};
-  const noConsecutiveRepeat = (soak.history || []).slice(1).every((v, i) => v !== soak.history[i]);
+  const noConsecutiveRepeat = (soak.newEntries || []).slice(1).every((v, i) => v !== soak.newEntries[i])
+    && soak.boundaryOk !== false;
   const slideshowOk = !!(results.homeBackground && !results.homeBackground.err
     && results.homeBackground.boot && results.homeBackground.boot.on === true
     && results.homeBackground.boot.timer === true && results.homeBackground.boot.list === 10

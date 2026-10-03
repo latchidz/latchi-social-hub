@@ -148,7 +148,11 @@
     }
     layer.style.backgroundImage = `url('${bgUrl(bgId)}')`;
     layer.style.opacity = '1';
-    noteShown(bgId);
+    // a re-apply of the SAME background (e.g. the user picks the static
+    // background the slideshow is already showing) is not a change — keep
+    // the history trail = actual visual changes. Slideshow ticks always
+    // log via applyBackgroundWithFade, so a real rotation bug stays visible.
+    if (bgId !== lastShownBg) noteShown(bgId);
   }
 
   function applyBackgroundWithFade(bgId) {

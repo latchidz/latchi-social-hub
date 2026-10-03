@@ -237,6 +237,7 @@ class PlatformManager {
     let rec = this.views.get(id);
     if (!rec) {
       rec = this._createView(p);
+      rec.lastUsed = Date.now(); // created now → most recently used by definition
       this.views.set(id, rec);
       this._beginLoad(rec, p); // hides the view; overlay covers the whole load
     } else if (rec.state === 'ready') {
@@ -671,8 +672,16 @@ class PlatformManager {
       const sharedWithActive = !!(active && plat && plat.partition === active.partition);
       this._destroyViewRecord(rec, { clearCache: !sharedWithActive });
     }
-    // keep the screen on while the user watches
-    try { this._psBlockerId = powerSaveBlocker.start('prevent-display-sleep'); } catch (_e) { this._psBlockerId = null; }
+    // keep the screen on while the user watches; on hosts where the OS
+    // cannot honor it (e.g. containers without a desktop bus) mark it so
+    // tests can tell "unavailable" from "never called"
+    try {
+      this._psBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+      this._psBlockerUnavailable = false;
+    } catch (_e) {
+      this._psBlockerId = null;
+      this._psBlockerUnavailable = true;
+    }
     this.wm.send('perf:videoFocus', { on: true });
   }
 
