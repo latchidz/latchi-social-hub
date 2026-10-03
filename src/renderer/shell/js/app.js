@@ -55,6 +55,8 @@
     renderStartupOptions();
     renderBackgroundOptions();
     renderSlideshowToggle();
+    renderPerfToggle();
+    applyPerfClass();
     renderLanguageOptions();
     setOnline(navigator.onLine);
 
@@ -72,6 +74,8 @@
     renderStartupOptions();
     renderBackgroundOptions();
     renderSlideshowToggle();
+    renderPerfToggle();
+    applyPerfClass();
     renderLanguageOptions();
     renderPlatformTiles(); // refresh tile tooltips (platform names)
   }
@@ -234,6 +238,7 @@
 
     bindBackup();
     bindSlideshowToggle();
+    bindPerfToggle();
   }
 
   /* ── backup: encrypted export / import ────────────────────────────────── */
@@ -358,6 +363,42 @@
       const on = (state.settings && state.settings.backgroundSlideshow) !== false;
       state.settings = await window.hub.setSettings({ backgroundSlideshow: !on });
       renderSlideshowToggle();
+    });
+  }
+
+  /* ── performance mode (low-end machines) ─────────────────────────────── */
+
+  function applyPerfClass() {
+    const on = !!(state.settings && state.settings.perfMode);
+    document.body.classList.toggle('perf', on);
+  }
+
+  let bootPerf = null; // perf profile this process booted with (captured on first render)
+
+  function renderPerfToggle() {
+    const btn = $('#perfToggle');
+    if (!btn) return;
+    const on = !!(state.settings && state.settings.perfMode);
+    if (bootPerf === null) bootPerf = on; // first render of this run = boot state
+    btn.classList.toggle('selected', on);
+    btn.querySelector('.opt-state').textContent = on ? t('settings.perfOn') : t('settings.perfOff');
+    const auto = !!(state.settings && state.settings.perfAuto);
+    const autoEl = $('#perfAutoHint');
+    if (autoEl) autoEl.hidden = !auto;
+    // graphics profile is decided pre-ready in the main process — a change
+    // only fully applies after a relaunch
+    const restartEl = $('#perfRestartHint');
+    if (restartEl) restartEl.hidden = (on === bootPerf);
+  }
+
+  function bindPerfToggle() {
+    const btn = $('#perfToggle');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      const on = !!(state.settings && state.settings.perfMode);
+      state.settings = await window.hub.setSettings({ perfMode: !on });
+      applyPerfClass();
+      renderPerfToggle();
     });
   }
 

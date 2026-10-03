@@ -615,3 +615,11 @@ body[data-focused="false"] .app-logo { opacity: .45; }
 #slideshowToggle.is-inactive { opacity: .55; }
 
 .slideshow-hint { margin-top: 8px; font-size: 11.5px; }
+.perf-auto-hint { margin-top: 6px; font-size: 11.5px; color: #F2C14E; }
+
+/* ── performance mode (low-end machines) ───────────────────────────────── */
+body.perf *,
+body.perf *::before,
+body.perf *::after {
+  transition-duration: 0s !important;
+}

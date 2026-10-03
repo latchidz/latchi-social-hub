@@ -33,6 +33,8 @@
     const { type, platformId, strings = {} } = payload;
     document.body.dataset.type = type || 'home';
     document.body.dataset.platform = platformId || 'none';
+    // performance mode: main process decides; the class kills CSS transitions
+    document.body.classList.toggle('perf', payload.perf === true);
 
     // home branding: the app icon banner replaces the hub logo on the home
     // screen; the background follows the settings policy:
@@ -187,6 +189,7 @@
   // minimal introspection state for the dev smoke harness
   function syncSlideshowDebug() {
     window.__lshSlideshow = {
+      perf: document.body.classList.contains('perf'),
       active: !!slideshowTimer,
       list: activeBgList.length,
       index: currentShuffleIndex,

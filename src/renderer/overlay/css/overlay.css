@@ -170,3 +170,14 @@ body[data-type="home"] .ov-inner { max-width: min(1040px, 84vw); }
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ── performance mode (low-end machines) ─────────────────────────────────
+   Main-thread work is the bottleneck on 4GB/HDD hardware: every CSS
+   transition (280ms overlay fade, 800ms background cross-fade, hovers)
+   is instant instead. Animations (spinner, banner entrance) are kept —
+   they are one-shot/compositor-cheap and a frozen spinner looks broken. */
+body.perf *,
+body.perf *::before,
+body.perf *::after {
+  transition-duration: 0s !important;
+}
