@@ -116,6 +116,32 @@ class PlatformManager {
     this.contentRect = { x: 0, y: 0, width: 0, height: 0 };
     this.online = true;
     this._started = false;
+    // ── performance mode (low-end machines) ─────────────────────────────
+    // Live-switchable parts: view budget (LRU destroy), slideshow gate,
+    // smart video focus. The graphics/switches profile is decided pre-ready
+    // in main.js (needs a relaunch to change — documented in Settings).
+    this.perf = !!(settings && settings.get('perfMode') === true);
+    this.videoFocus = false;
+    this._vfConfirmTimer = null;
+    this._vfExitTimer = null;
+    this._psBlockerId = null;
+  }
+
+  /**
+   * Live performance-mode switch (Settings toggle). Applies the view budget
+   * immediately and re-renders the Home overlay so the slideshow gate takes
+   * effect without a restart. The Chromium switch profile follows on the
+   * next launch (decided pre-ready in main.js).
+   */
+  setPerfMode(on) {
+    this.perf = on === true;
+    if (this.perf) {
+      this._enforceViewBudget();
+    } else {
+      this._exitVideoFocus(); // focus is a perf-mode-only behavior
+    }
+    // re-render a visible Home so the slideshow starts/stops right away
+    this.onHomeBackgroundChanged();
   }
 
   get platforms() { return PLATFORMS; }
@@ -197,6 +223,7 @@ class PlatformManager {
     const p = this.platformById(id);
     if (!p || !this.win) return { ok: false };
     if (this.panelName) this.closePanel();
+    if (this.videoFocus && id !== this.activeId) this._exitVideoFocus();
 
     this.activeId = id;
     try { this.settings.set({ lastPlatform: id }); } catch (_e) {}
@@ -230,6 +257,7 @@ class PlatformManager {
 
     this.wm.send('platform:active', { id });
     this._emitState(id);
+    this._enforceViewBudget();
     return { ok: true };
   }
 
@@ -247,10 +275,14 @@ class PlatformManager {
   }
 
   showHome() {
+    if (this.videoFocus) this._exitVideoFocus();
     this.activeId = null;
     for (const [, rec] of this.views) rec.view.setVisible(false);
     this._renderOverlay('home');
     this.wm.send('platform:active', { id: null });
+    // Home only shows our own overlay: keep the 2 most recent platforms warm
+    // (instant return), release everything else on low-end machines.
+    this._enforceViewBudget();
   }
 
   /* ── panels (settings / language cover the content area) ───────────────── */
@@ -284,9 +316,11 @@ class PlatformManager {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
-        // keep media/timers alive when the view is hidden so switching back
-        // to a heavy feed (Instagram/YouTube) never stutters or drops state
-        backgroundThrottling: false,
+        // Standard profile keeps hidden platforms fully alive (media/timers
+        // running) so switching back to a heavy feed never stutters. The perf
+        // profile throttles HIDDEN views instead — the visible platform and
+        // the user's RAM come first on low-end machines.
+        backgroundThrottling: this.perf,
         // no preload: platform pages must never receive app APIs
       },
     });
@@ -414,6 +448,49 @@ class PlatformManager {
     } catch (_e) {}
   }
 
+  /**
+   * Performance-mode view budget: at most PERF_VIEW_BUDGET platform views may
+   * stay ALIVE (the active one + the most recently used others). Older ones
+   * are destroyed — their renderer processes (hundreds of MB each for heavy
+   * sites like YouTube/Facebook) are released while `persist:` sessions keep
+   * every login on disk, so a destroyed platform simply reloads logged-in on
+   * the next visit. No-op in the standard profile.
+   */
+  _enforceViewBudget() {
+    if (!this.perf) return;
+    const BUDGET = 2;
+    if (this.views.size <= BUDGET) return;
+    const byRecency = [...this.views.values()]
+      .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+    const keep = new Set([this.activeId]);
+    for (const rec of byRecency) {
+      if (keep.size >= BUDGET) break;
+      keep.add(rec.id);
+    }
+    const active = this.platformById(this.activeId);
+    for (const [pid, rec] of [...this.views]) {
+      if (keep.has(pid)) continue;
+      // never clear the HTTP cache of a partition an ALIVE view still uses
+      // (Meta group) — destroying the view alone is always safe.
+      const plat = this.platformById(pid);
+      const sharedWithActive = !!(active && plat && plat.partition === active.partition);
+      this._destroyViewRecord(rec, { clearCache: !sharedWithActive });
+    }
+  }
+
+  _destroyViewRecord(rec, { clearCache = false } = {}) {
+    this._clearTimers(rec);
+    try { this.win.contentView.removeChildView(rec.view); } catch (_e) {}
+    try { rec.view.webContents.close(); } catch (_e) {}
+    if (clearCache) {
+      const plat = this.platformById(rec.id);
+      if (plat) {
+        try { session.fromPartition(plat.partition).clearCache().catch(() => {}); } catch (_e) {}
+      }
+    }
+    this.views.delete(rec.id);
+  }
+
   _applyBounds(view) {
     const r = this.contentRect;
     if (r.width > 10 && r.height > 10) {
@@ -451,8 +528,13 @@ class PlatformManager {
       type,
       platformId: platformId || null,
       homeBackground,
-      // slideshow only runs on Home with no specific background chosen
-      slideshow: homeBackground === 'default' && this.settings.get('backgroundSlideshow') !== false,
+      // slideshow only runs on Home with no specific background chosen —
+      // and never in performance mode (its 3s timer + 800ms cross-fades
+      // cost main-thread work a low-end machine needs for the platforms)
+      slideshow: homeBackground === 'default'
+        && this.settings.get('backgroundSlideshow') !== false
+        && !this.perf,
+      perf: this.perf,
       backgrounds: this.availableBackgrounds(),
       strings: {
         loading: s['overlay.loading'],
