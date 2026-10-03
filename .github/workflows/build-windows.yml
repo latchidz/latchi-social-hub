@@ -45,11 +45,20 @@ jobs:
             dist/LATCHI-SOCIAL-HUB-Portable-*.exe \
             dist/SHA256SUMS.txt \
             --title "LATCHI SOCIAL HUB ${{ github.ref_name }}" \
-            --notes "Windows 10/11 x64 — version 0.1.0
+            --notes "Windows 10/11 x64 — ${{ github.ref_name }}
 
-          الملفات:
-          - LATCHI-SOCIAL-HUB-Setup-0.1.0.exe — المثبّت (اختيار مسار التثبيت، اختصار قائمة ابدأ، اختصار سطح المكتب، إزالة نظيفة تحافظ على بيانات المستخدم)
-          - LATCHI-SOCIAL-HUB-Portable-0.1.0.exe — النسخة المحمولة (ملف واحد بلا تثبيت)
-          - SHA256SUMS.txt — بصمات التحقق من سلامة الملفات
+          📦 Files / الملفات:
+          - LATCHI-SOCIAL-HUB-Setup-*.exe — Installer / المثبّت (custom install path, Start-menu + desktop shortcuts, clean uninstall that keeps user data)
+          - LATCHI-SOCIAL-HUB-Portable-*.exe — Portable / النسخة المحمولة (single file, no install)
+          - SHA256SUMS.txt — Integrity checksums / بصمات التحقق
 
-          تنبيه: البناء غير موقّع — قد يُظهر SmartScreen تحذير Unknown publisher عند أول تشغيل: More info ثم Run anyway."
+          ✨ Highlights / أبرز الميزات:
+          - 8 platforms / ثماني منصات: Instagram · Facebook · Messenger · WhatsApp · Gmail · Outlook · YouTube · Telegram
+          - One Meta login / دخول واحد لمنصات Meta (Facebook + Instagram + Messenger)
+          - Encrypted backup & restore (AES-256-GCM) / نسخ احتياطي مشفّر واستعادة
+          - Luxury AI visual identity: app icon, 8 platform tiles, home banner, 10 backgrounds / هوية بصرية فاخرة بالذكاء الاصطناعي
+          - Random background slideshow every 3s / سلايد شو عشوائي للخلفيات
+          - Full AR/EN with RTL/LTR / عربي-إنجليزي كامل
+
+          ⚠️ Note: the build is unsigned — SmartScreen may show an Unknown-publisher warning on first run: More info → Run anyway.
+          تنبيه: البناء غير موقّع — قد يُظهر SmartScreen تحذيراً عند أول تشغيل: More info ثم Run anyway."
