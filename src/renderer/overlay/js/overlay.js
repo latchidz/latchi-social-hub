@@ -48,6 +48,12 @@
       } else if (payload.homeBackground && payload.homeBackground !== 'default') {
         stopBackgroundSlideshow();
         applyBackground(payload.homeBackground);
+      } else if (payload.perf && Array.isArray(payload.backgrounds) && payload.backgrounds.length) {
+        // performance mode + "random" choice: ONE static background per Home
+        // visit (branded, but no 3s timer / no cross-fade repaints)
+        stopBackgroundSlideshow();
+        const pick = payload.backgrounds[Math.floor(Math.random() * payload.backgrounds.length)];
+        applyBackground(pick);
       } else {
         stopBackgroundSlideshow();
         applyBackground(null);

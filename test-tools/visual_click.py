@@ -21,6 +21,21 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 9360
 cdp.PORT = PORT
 HOME = os.environ.get('LSH_VISUAL_HOME', '/tmp/lsh-visual-home')
 os.makedirs(HOME, exist_ok=True)
+# Deterministic baseline: the sandbox may have ≤4.9GB RAM, which would
+# auto-enable performance mode on first boot (LRU view budget would then
+# reload platforms mid-click-through). Seed the real userData of BOTH
+# possible app names with perfMode=false so the visual run exercises the
+# standard profile; the perf paths have their own smoke section.
+for _app in ('latchi-social-hub', 'LATCHI SOCIAL HUB'):
+    _cfg = os.path.join(HOME, '.config', _app)
+    os.makedirs(_cfg, exist_ok=True)
+    _sf = os.path.join(_cfg, 'settings.json')
+    try:
+        _cur = json.load(open(_sf)) if os.path.exists(_sf) else {}
+    except Exception:
+        _cur = {}
+    _cur['perfMode'] = False
+    json.dump(_cur, open(_sf, 'w'))
 
 def xdotool(*cmd):
     return subprocess.run(['xdotool', *cmd], capture_output=True, text=True).stdout.strip()
