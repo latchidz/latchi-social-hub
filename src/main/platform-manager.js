@@ -17,7 +17,7 @@
  */
 
 const path = require('path');
-const { WebContentsView, session, net } = require('electron');
+const { WebContentsView, session, net, powerSaveBlocker } = require('electron');
 const fs = require('fs');
 const { getLocale } = require('./locales');
 const { registerPlatformSession, hardenWebContents } = require('./security-manager');
@@ -358,6 +358,15 @@ class PlatformManager {
       this._markFailed(rec, p, -1, `render-process-gone (${details && details.reason})`);
     });
 
+    // ── smart video focus (performance mode only) ─────────────────────
+    // Page-agnostic media signals from the renderer host — nothing is
+    // injected into the platform page. A SUSTAINED, AUDIBLE (or clearly
+    // video-URL) playback on the ACTIVE platform is treated as "the user
+    // is watching a video" → all other platforms are released so the
+    // machine's RAM/CPU serve the player (the IPTV-app experience).
+    wc.on('media-started-playing', () => this._onMediaEvent(p.id, 'start', rec));
+    wc.on('media-paused', () => this._onMediaEvent(p.id, 'pause', rec));
+
     this.win.contentView.addChildView(view);
     this._applyBounds(view);
     return rec; // hidden until ready — the overlay owns the content area meanwhile
@@ -602,6 +611,83 @@ class PlatformManager {
     }
   }
 
+  /* ── smart video focus (performance mode) ───────────────────────────────── */
+
+  /**
+   * The owner's low-end machine (4 GB RAM / HDD / old iGPU) plays the IPTV
+   * app's dedicated player smoothly because exactly ONE video surface is
+   * alive. This brings the same discipline to the Social Hub: when the user
+   * is clearly WATCHING a video on the active platform, every other platform
+   * renderer is released and the display is kept awake. Sessions persist —
+   * other platforms reload signed-in when the user comes back.
+   *
+   * Confirmation policy (no false positives from hover-previews, autoplay
+   * thumbnails or story pre-loads):
+   *   1. media-started-playing on the ACTIVE platform (perf mode only)
+   *   2. sustained ≥ 2.5s (previews are browsed past in under a second)
+   *   3. audible at that point, OR the URL is an explicit video surface
+   *      (/watch, /shorts/, /live/, reels, /video) — muted watching still counts
+   * Exit: switching platform / going Home / playback paused for 45s.
+   */
+  _onMediaEvent(id, ev, rec) {
+    if (!this.perf || id !== this.activeId || !rec) return;
+    if (ev === 'start') {
+      if (this._vfExitTimer) { clearTimeout(this._vfExitTimer); this._vfExitTimer = null; }
+      if (this.videoFocus || this._vfConfirmTimer) return;
+      this._vfConfirmTimer = setTimeout(() => {
+        this._vfConfirmTimer = null;
+        if (!this.perf || this.videoFocus || id !== this.activeId) return;
+        const liveRec = this.views.get(id);
+        if (!liveRec || liveRec !== rec) return;
+        let confirmed = false;
+        try {
+          confirmed = rec.smokeAudible === true || rec.view.webContents.isCurrentlyAudible();
+        } catch (_e) { /* view may be mid-navigation */ }
+        if (!confirmed) {
+          try {
+            confirmed = /\/watch|\/shorts\/|\/live\/|reel|\/video\//i.test(rec.view.webContents.getURL());
+          } catch (_e) { /* ignore */ }
+        }
+        if (confirmed) this._enterVideoFocus();
+      }, 2500);
+    } else if (ev === 'pause') {
+      if (!this.videoFocus) return;
+      if (this._vfExitTimer) clearTimeout(this._vfExitTimer);
+      this._vfExitTimer = setTimeout(() => {
+        this._vfExitTimer = null;
+        this._exitVideoFocus();
+      }, 45000);
+    }
+  }
+
+  _enterVideoFocus() {
+    if (this.videoFocus) return;
+    this.videoFocus = true;
+    // release every platform except the one playing the video
+    const active = this.platformById(this.activeId);
+    for (const [pid, rec] of [...this.views]) {
+      if (pid === this.activeId) continue;
+      const plat = this.platformById(pid);
+      const sharedWithActive = !!(active && plat && plat.partition === active.partition);
+      this._destroyViewRecord(rec, { clearCache: !sharedWithActive });
+    }
+    // keep the screen on while the user watches
+    try { this._psBlockerId = powerSaveBlocker.start('prevent-display-sleep'); } catch (_e) { this._psBlockerId = null; }
+    this.wm.send('perf:videoFocus', { on: true });
+  }
+
+  _exitVideoFocus() {
+    if (this._vfConfirmTimer) { clearTimeout(this._vfConfirmTimer); this._vfConfirmTimer = null; }
+    if (this._vfExitTimer) { clearTimeout(this._vfExitTimer); this._vfExitTimer = null; }
+    if (this._psBlockerId !== null) {
+      try { powerSaveBlocker.stop(this._psBlockerId); } catch (_e) {}
+      this._psBlockerId = null;
+    }
+    if (!this.videoFocus) return;
+    this.videoFocus = false;
+    this.wm.send('perf:videoFocus', { on: false });
+  }
+
   /* ── sessions ──────────────────────────────────────────────────────────── */
 
   async clearAllSessions() {
@@ -648,6 +734,9 @@ class PlatformManager {
   getSnapshot() {
     return {
       activeId: this.activeId,
+      perf: this.perf,
+      videoFocus: this.videoFocus,
+      liveViews: this.views.size,
       platforms: [...this.views.entries()].map(([id, r]) => ({
         id, state: r.state, everReady: r.everReady, navigations: r.navigations,
       })),
