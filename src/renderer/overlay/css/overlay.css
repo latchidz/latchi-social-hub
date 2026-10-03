@@ -102,7 +102,7 @@ body[data-platform="telegram"]  { --brand: #229ED9; }
 .ov-btn:hover { background: rgba(255, 255, 255, .09); }
 .ov-btn:active { transform: scale(.97); }
 
-.ov-btn[hidden], .ov-spinner[hidden], .ov-banner[hidden], .ov-logo[hidden] { display: none; }
+.ov-btn[hidden], .ov-spinner[hidden], .ov-home-banner[hidden], .ov-logo[hidden] { display: none; }
 
 
 /* ═══ HOME BRANDING: banner + selectable background ══════════════════════ */
@@ -118,16 +118,52 @@ body[data-platform="telegram"]  { --brand: #229ED9; }
   pointer-events: none;
 }
 
-.ov-banner {
-  display: block;
-  width: clamp(96px, 13vw, 168px);
-  aspect-ratio: 1 / 1;
-  height: auto;
-  border-radius: 22%;
-  object-fit: cover;
-  margin-bottom: 4px;
-  filter: drop-shadow(0 14px 44px rgba(0, 0, 0, .55));
+/* local luxury serif (no CDN — file ships in src/assets/fonts) */
+@font-face {
+  font-family: 'Cinzel';
+  src: url('../../assets/fonts/Cinzel.ttf') format('truetype');
+  font-weight: 400 900;
+  font-display: swap;
+}
+
+/* home screen widens to host the 3:1 banner */
+body[data-type="home"] .ov-inner { max-width: min(1040px, 84vw); }
+
+.ov-home-banner {
+  position: relative;
+  width: min(1000px, 80vw);
+  max-width: 100%;
+  aspect-ratio: 3 / 1;
+  margin: 0 auto;
   animation: bannerIn 420ms ease-out;
+}
+
+.ov-home-banner img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.ov-home-banner-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #F2C14E;
+  font-family: 'Cinzel', Georgia, 'Times New Roman', serif;
+  font-size: clamp(28px, 5vw, 56px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6), 0 0 24px rgba(242, 193, 78, 0.3);
+  text-align: center;
+  pointer-events: none;
+  padding: 0 24px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 @keyframes bannerIn {
