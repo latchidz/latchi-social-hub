@@ -208,7 +208,7 @@ async function runSmoke({ wm, pm, settings }) {
   results.overlayChecks.bootHome = await overlayCheck();
   try {
     const brand = await withTimeout(pm.overlay.webContents.executeJavaScript(
-      "JSON.stringify({bannerHidden:document.getElementById('ovBanner').hidden,bannerW:document.getElementById('ovBanner').naturalWidth,logoHidden:document.getElementById('ovLogo').hidden,bgImg:(document.getElementById('bgLayer').style.backgroundImage||''),bgOn:document.getElementById('bgLayer').style.opacity==='1',slideshow:window.__lshSlideshow||null})"
+      "JSON.stringify({bannerHidden:document.getElementById('ovBanner').hidden,bannerW:((document.getElementById('ovBanner').querySelector('img')||{}).naturalWidth)||0,bannerText:((document.querySelector('.ov-home-banner-text')||{}).textContent)||'',logoHidden:document.getElementById('ovLogo').hidden,bgImg:(document.getElementById('bgLayer').style.backgroundImage||''),bgOn:document.getElementById('bgLayer').style.opacity==='1',slideshow:window.__lshSlideshow||null})"
     ), 4000);
     results.homeBranding = (typeof brand === 'string' && brand !== 'TIMEOUT') ? JSON.parse(brand) : { timeout: true };
   } catch (e) { results.homeBranding = { err: String(e && e.message) }; }
@@ -557,30 +557,33 @@ async function runSmoke({ wm, pm, settings }) {
 
   /* ══ L) HOME BACKGROUND + SLIDESHOW (T8/F3 — applies instantly) ═══════ */
   const bgDom = () => withTimeout(pm.overlay.webContents.executeJavaScript(
-    "JSON.stringify({img:(document.getElementById('bgLayer').style.backgroundImage||''),on:document.getElementById('bgLayer').style.opacity==='1',timer:!!(window.__lshSlideshow&&window.__lshSlideshow.active),list:(window.__lshSlideshow&&window.__lshSlideshow.list)||0})"
+    "JSON.stringify({img:(document.getElementById('bgLayer').style.backgroundImage||''),on:document.getElementById('bgLayer').style.opacity==='1',timer:!!(window.__lshSlideshow&&window.__lshSlideshow.active),list:(window.__lshSlideshow&&window.__lshSlideshow.list)||0,history:(window.__lshSlideshow&&window.__lshSlideshow.history)||[]})"
   ), 4000).then((v) => (typeof v === 'string' && v !== 'TIMEOUT') ? JSON.parse(v) : null);
+  const overlayNodeCount = () => withTimeout(pm.overlay.webContents.executeJavaScript(
+    "document.getElementsByTagName('*').length"
+  ), 4000).then((v) => (typeof v === 'number' ? v : -1));
+  const memKB = () => app.getAppMetrics().reduce((a, p) => a + ((p.memory && p.memory.workingSetSize) || 0), 0);
 
   try {
     pm.showHome();
     await sleep(600);
 
-    // default settings → slideshow mode; with a single shipped background
-    // it renders bg-01 statically and keeps the timer OFF
+    // default settings → shuffled slideshow across all 10 backgrounds
     const bootBg = await bgDom();
 
-    // T8: explicit static choice
-    settings.set({ homeBackground: 'bg-01' });
+    // V7/T8: explicit static choice
+    settings.set({ homeBackground: 'bg-05' });
     pm.onHomeBackgroundChanged();
     await sleep(700);
     const staticBg = await bgDom();
 
-    // F3: slideshow toggle OFF with default choice → no background at all
+    // F3: slideshow toggle OFF with random → no background at all
     settings.set({ homeBackground: 'default', backgroundSlideshow: false });
     pm.onHomeBackgroundChanged();
     await sleep(700);
     const offBg = await bgDom();
 
-    // F3: toggle back ON → single-bg slideshow shows bg-01 again
+    // F3: toggle back ON → shuffled slideshow resumes
     settings.set({ backgroundSlideshow: true });
     pm.onHomeBackgroundChanged();
     await sleep(700);
@@ -591,6 +594,20 @@ async function runSmoke({ wm, pm, settings }) {
     try { settings.set({ homeBackground: 'neon' }); } catch (_e) { invalidBgRejected = true; }
     let invalidToggleRejected = false;
     try { settings.set({ backgroundSlideshow: 'yes' }); } catch (_e) { invalidToggleRejected = true; }
+
+    // F1: choice persists to disk
+    settings.set({ homeBackground: 'bg-05' });
+    const persistedBg = JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')).homeBackground;
+    settings.set({ homeBackground: 'default' }); // restore
+
+    // SOAK: let the shuffle rotate ~12s (≥3 transitions), then verify
+    // order randomness evidence, no consecutive repeats, DOM + memory stability
+    const domBefore = await overlayNodeCount();
+    const memBefore = memKB();
+    await sleep(12500);
+    const soakBg = await bgDom();
+    const domAfter = await overlayNodeCount();
+    const memDeltaKB = memKB() - memBefore;
 
     // slideshow must stop the moment a platform takes over the screen
     pm.selectPlatform('telegram');
@@ -606,8 +623,15 @@ async function runSmoke({ wm, pm, settings }) {
       toggleOff: offBg,
       toggleOn: onBg,
       invalidRejected: invalidBgRejected && invalidToggleRejected,
+      persistedBg,
       duringPlatform,
       backHome,
+      soak: {
+        history: soakBg.history,
+        rotations: soakBg.history.length,
+        domNodes: { before: domBefore, after: domAfter },
+        memDeltaKB,
+      },
     };
   } catch (e) { results.homeBackground = { err: String(e && e.message) }; }
 
@@ -737,12 +761,14 @@ async function runSmoke({ wm, pm, settings }) {
     && results.clearSessions.cookiesWiped && results.clearSessions.reloadsAfterClear;
   const homeBgOk = !!(results.homeBackground && !results.homeBackground.err
     && results.homeBackground.staticChoice && results.homeBackground.staticChoice.on === true
-    && results.homeBackground.staticChoice.img.includes('bg-01.jpg')
+    && results.homeBackground.staticChoice.img.includes('bg-05.jpg')
+    && results.homeBackground.staticChoice.timer === false
     && results.homeBackground.toggleOff && results.homeBackground.toggleOff.on === false
     && results.homeBackground.toggleOff.img === ''
     && results.homeBackground.toggleOn && results.homeBackground.toggleOn.on === true
-    && results.homeBackground.toggleOn.img.includes('bg-01.jpg')
-    && results.homeBackground.invalidRejected);
+    && results.homeBackground.toggleOn.timer === true
+    && results.homeBackground.invalidRejected
+    && results.homeBackground.persistedBg === 'bg-05');
   const backupOk = !!(results.backup && !results.backup.err
     && results.backup.export.ok && results.backup.export.platformCount === PLATFORM_IDS.length
     && results.backup.headerOk && results.backup.encrypted && results.backup.formatVerified
@@ -752,22 +778,31 @@ async function runSmoke({ wm, pm, settings }) {
     && results.backup.filesRestored > 0 && results.backup.cookiesFileRestored
     && results.backup.bytesIdentical && results.backup.settingsRestored);
   const brandingOk = !!(results.homeBranding && results.homeBranding.bannerHidden === false
-    && results.homeBranding.bannerW === 1024 && results.homeBranding.logoHidden === true
-    && results.homeBranding.bgImg.includes('bg-01.jpg') && results.homeBranding.bgOn === true);
+    && results.homeBranding.bannerW === 1200
+    && results.homeBranding.bannerText === 'LATCHI SOCIAL HUB'
+    && results.homeBranding.logoHidden === true
+    && results.homeBranding.bgImg.includes('.jpg') && results.homeBranding.bgOn === true);
   const metaSharingOk = !!(iso.metaSharing && iso.metaSharing.sameSessionObject
     && iso.metaSharing.cookieVisibleFromMessenger && iso.metaSharing.notVisibleFromTelegram);
   const tilesOk = !!(results.shellDom && results.shellDom.platformButtons === PLATFORM_IDS.length
     && results.shellDom.tilesWithImg === PLATFORM_IDS.length
     && results.shellDom.tileNames === PLATFORM_IDS.length
     && results.shellDom.tileRatio >= 0.45 && results.shellDom.tileRatio <= 0.55
-    && results.shellDom.backupCard === true && results.shellDom.bgOptions === 2
+    && results.shellDom.backupCard === true && results.shellDom.bgOptions === 11
     && results.shellDom.slideshowToggle === true);
+  const soak = (results.homeBackground && results.homeBackground.soak) || {};
+  const noConsecutiveRepeat = (soak.history || []).slice(1).every((v, i) => v !== soak.history[i]);
   const slideshowOk = !!(results.homeBackground && !results.homeBackground.err
     && results.homeBackground.boot && results.homeBackground.boot.on === true
-    && results.homeBackground.boot.img.includes('bg-01.jpg')
-    && results.homeBackground.boot.timer === false && results.homeBackground.boot.list === 1
+    && results.homeBackground.boot.timer === true && results.homeBackground.boot.list === 10
+    && results.homeBackground.boot.img.includes('.jpg')
     && results.homeBackground.duringPlatform && results.homeBackground.duringPlatform.on === false
-    && results.homeBackground.backHome && results.homeBackground.backHome.on === true);
+    && results.homeBackground.duringPlatform.timer === false
+    && results.homeBackground.backHome && results.homeBackground.backHome.on === true
+    && results.homeBackground.backHome.timer === true
+    && soak.rotations >= 4 && noConsecutiveRepeat
+    && soak.domNodes && soak.domNodes.after <= soak.domNodes.before + 2
+    && Math.abs(soak.memDeltaKB) < 100 * 1024);
   const shellClean = results.consoleErrors.shell.length === 0
     && Object.keys(results.consoleErrors.overlay).length === 0;
 

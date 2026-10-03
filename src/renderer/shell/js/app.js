@@ -304,11 +304,11 @@
     const bgs = (state.backgrounds && state.backgrounds.length)
       ? state.backgrounds : [{ id: 'bg-01' }];
     const entries = [
-      { id: 'default', key: 'settings.bgDefault', thumb: null },
+      { id: 'default', key: 'settings.bgRandom', thumb: null }, // shuffled slideshow
       ...bgs.map((b) => ({
         id: b.id,
         key: 'settings.bg' + b.id.replace('-', ''), // bg-01 → settings.bg01
-        thumb: `../../assets/backgrounds/${b.id}.jpg`,
+        thumb: `../../assets/backgrounds/${b.id}-thumb.jpg`,
       })),
     ];
     for (const bg of entries) {
@@ -321,6 +321,7 @@
       if (bg.thumb) {
         const img = document.createElement('img');
         img.src = bg.thumb;
+        img.onerror = () => { img.onerror = null; img.src = bg.thumb.replace('-thumb.jpg', '.jpg'); };
         img.alt = '';
         img.draggable = false;
         thumb.appendChild(img);

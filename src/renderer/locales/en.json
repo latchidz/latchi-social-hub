@@ -71,10 +71,19 @@
   "backup.restartLater": "Later",
   "settings.homeBgTitle": "Home screen background",
   "settings.homeBgHint": "Choose the background of the app start screen.",
-  "settings.bgDefault": "Default",
   "settings.bg01": "Golden luxury",
   "settings.slideshow": "Background slideshow",
   "settings.slideshowOn": "Enabled",
   "settings.slideshowOff": "Disabled",
-  "settings.slideshowHint": "Auto-rotate backgrounds every 3 seconds on the home screen — only while \"Default\" is selected."
+  "settings.slideshowHint": "Randomly rotate backgrounds every 3 seconds on the home screen — only while \"Random\" is selected.",
+  "settings.bgRandom": "Random (slideshow)",
+  "settings.bg02": "Luxury mesh gradient",
+  "settings.bg03": "Floating golden particles",
+  "settings.bg04": "Glowing geometric lines",
+  "settings.bg05": "Dark metallic texture",
+  "settings.bg06": "Light waves",
+  "settings.bg07": "3D wireframe grid",
+  "settings.bg08": "Soft bokeh lights",
+  "settings.bg09": "Stars & distant galaxy",
+  "settings.bg10": "Premium metallic gradient"
 }

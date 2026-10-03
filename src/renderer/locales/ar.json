@@ -71,10 +71,19 @@
   "backup.restartLater": "لاحقاً",
   "settings.homeBgTitle": "خلفية الشاشة الرئيسية",
   "settings.homeBgHint": "اختر خلفية شاشة البداية للتطبيق.",
-  "settings.bgDefault": "افتراضي",
   "settings.bg01": "فاخرة ذهبية",
   "settings.slideshow": "سلايد شو الخلفية",
   "settings.slideshowOn": "مفعل",
   "settings.slideshowOff": "معطل",
-  "settings.slideshowHint": "تبديل تلقائي للخلفيات كل 3 ثوانٍ في الشاشة الرئيسية — يعمل فقط عند اختيار «افتراضي»."
+  "settings.slideshowHint": "تبديل عشوائي للخلفيات كل 3 ثوانٍ في الشاشة الرئيسية — يعمل فقط عند اختيار «عشوائي».",
+  "settings.bgRandom": "عشوائي (سلايد شو)",
+  "settings.bg02": "تدرّج شبكي فاخر",
+  "settings.bg03": "جزيئات ذهبية طافية",
+  "settings.bg04": "خطوط هندسية مضيئة",
+  "settings.bg05": "نسيج معدني داكن",
+  "settings.bg06": "موجات ضوئية",
+  "settings.bg07": "شبكة ثلاثية الأبعاد",
+  "settings.bg08": "بقع ضوئية ناعمة",
+  "settings.bg09": "نجوم ومجرة بعيدة",
+  "settings.bg10": "تدرّج معدني فاخر"
 }
