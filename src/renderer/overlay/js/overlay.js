@@ -33,6 +33,8 @@
     const { type, platformId, strings = {} } = payload;
     document.body.dataset.type = type || 'home';
     document.body.dataset.platform = platformId || 'none';
+    // performance mode: main process decides; the class kills CSS transitions
+    document.body.classList.toggle('perf', payload.perf === true);
 
     // home branding: the app icon banner replaces the hub logo on the home
     // screen; the background follows the settings policy:
@@ -46,6 +48,12 @@
       } else if (payload.homeBackground && payload.homeBackground !== 'default') {
         stopBackgroundSlideshow();
         applyBackground(payload.homeBackground);
+      } else if (payload.perf && Array.isArray(payload.backgrounds) && payload.backgrounds.length) {
+        // performance mode + "random" choice: ONE static background per Home
+        // visit (branded, but no 3s timer / no cross-fade repaints)
+        stopBackgroundSlideshow();
+        const pick = payload.backgrounds[Math.floor(Math.random() * payload.backgrounds.length)];
+        applyBackground(pick);
       } else {
         stopBackgroundSlideshow();
         applyBackground(null);
@@ -140,7 +148,11 @@
     }
     layer.style.backgroundImage = `url('${bgUrl(bgId)}')`;
     layer.style.opacity = '1';
-    noteShown(bgId);
+    // a re-apply of the SAME background (e.g. the user picks the static
+    // background the slideshow is already showing) is not a change — keep
+    // the history trail = actual visual changes. Slideshow ticks always
+    // log via applyBackgroundWithFade, so a real rotation bug stays visible.
+    if (bgId !== lastShownBg) noteShown(bgId);
   }
 
   function applyBackgroundWithFade(bgId) {
@@ -187,6 +199,7 @@
   // minimal introspection state for the dev smoke harness
   function syncSlideshowDebug() {
     window.__lshSlideshow = {
+      perf: document.body.classList.contains('perf'),
       active: !!slideshowTimer,
       list: activeBgList.length,
       index: currentShuffleIndex,

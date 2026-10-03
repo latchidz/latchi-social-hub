@@ -557,7 +557,7 @@ async function runSmoke({ wm, pm, settings }) {
 
   /* ══ L) HOME BACKGROUND + SLIDESHOW (T8/F3 — applies instantly) ═══════ */
   const bgDom = () => withTimeout(pm.overlay.webContents.executeJavaScript(
-    "JSON.stringify({img:(document.getElementById('bgLayer').style.backgroundImage||''),on:document.getElementById('bgLayer').style.opacity==='1',timer:!!(window.__lshSlideshow&&window.__lshSlideshow.active),list:(window.__lshSlideshow&&window.__lshSlideshow.list)||0,history:(window.__lshSlideshow&&window.__lshSlideshow.history)||[]})"
+    "JSON.stringify({img:(document.getElementById('bgLayer').style.backgroundImage||''),on:document.getElementById('bgLayer').style.opacity==='1',perf:!!(window.__lshSlideshow&&window.__lshSlideshow.perf),timer:!!(window.__lshSlideshow&&window.__lshSlideshow.active),list:(window.__lshSlideshow&&window.__lshSlideshow.list)||0,history:(window.__lshSlideshow&&window.__lshSlideshow.history)||[]})"
   ), 4000).then((v) => (typeof v === 'string' && v !== 'TIMEOUT') ? JSON.parse(v) : null);
   const overlayNodeCount = () => withTimeout(pm.overlay.webContents.executeJavaScript(
     "document.getElementsByTagName('*').length"
@@ -604,10 +604,17 @@ async function runSmoke({ wm, pm, settings }) {
     // order randomness evidence, no consecutive repeats, DOM + memory stability
     const domBefore = await overlayNodeCount();
     const memBefore = memKB();
+    const preSoakHistory = (onBg.history || []).slice(); // full trail ≤ 12 here
     await sleep(12500);
     const soakBg = await bgDom();
     const domAfter = await overlayNodeCount();
     const memDeltaKB = memKB() - memBefore;
+    // only entries appended during the soak carry the engine's no-repeat
+    // guarantee (before it, a static user choice may legitimately re-apply
+    // the background the slideshow was already showing)
+    const soakNew = soakBg.history.slice(preSoakHistory.length);
+    const soakBoundaryOk = !soakNew.length
+      || soakNew[0] !== preSoakHistory[preSoakHistory.length - 1];
 
     // slideshow must stop the moment a platform takes over the screen
     pm.selectPlatform('telegram');
@@ -628,7 +635,9 @@ async function runSmoke({ wm, pm, settings }) {
       backHome,
       soak: {
         history: soakBg.history,
-        rotations: soakBg.history.length,
+        newEntries: soakNew,
+        rotations: soakNew.length,
+        boundaryOk: soakBoundaryOk,
         domNodes: { before: domBefore, after: domAfter },
         memDeltaKB,
       },
@@ -733,6 +742,127 @@ async function runSmoke({ wm, pm, settings }) {
     await captureView(win.webContents, 'final-after-clear', results.screenshots);
   } catch (e) { results.clearSessions = { err: String(e && e.message) }; }
 
+  /* ══ O) PERFORMANCE MODE (low-end machines) ════════════════════════════ */
+  try {
+    const SettingsStore = require('./settings-store');
+    const os = require('os');
+
+    // O1 unit: the RAM classifier — both machine classes
+    const detect4gb = SettingsStore.detectLowEnd(4.2 * 1024 ** 3) === true;
+    const detect8gb = SettingsStore.detectLowEnd(8.6 * 1024 ** 3) === false;
+
+    // O1 unit: first-boot auto-detection persists (fresh stores, both classes)
+    fs.rmSync('/tmp/lsh-perf-4g', { recursive: true, force: true });
+    fs.rmSync('/tmp/lsh-perf-16g', { recursive: true, force: true });
+    const store4g = new SettingsStore('/tmp/lsh-perf-4g', { totalmemOverride: 4.2 * 1024 ** 3 });
+    const store16g = new SettingsStore('/tmp/lsh-perf-16g', { totalmemOverride: 16 * 1024 ** 3 });
+    const auto4g = store4g.get('perfMode') === true && store4g.get('perfAuto') === true;
+    const auto16g = store16g.get('perfMode') === false;
+    // and it really hit the disk (pre-ready peek must agree on next boot)
+    const peek4g = SettingsStore.peekPerfMode('/tmp/lsh-perf-4g') === true;
+    const peek16g = SettingsStore.peekPerfMode('/tmp/lsh-perf-16g') === false;
+
+    // O2 wiring: this run boots with the 8GB smoke override → perf OFF
+    const bootPerfOff = settings.get('perfMode') === false;
+    // invalid values rejected
+    let invalidPerfRejected = false;
+    try { settings.set({ perfMode: 'fast' }); } catch (_e) { invalidPerfRejected = true; }
+
+    // O3 LIVE ON (real toggle path: settings.set + pm.setPerfMode)
+    settings.set({ perfMode: true });
+    pm.setPerfMode(true);
+    const liveOn = pm.perf === true;
+    // slideshow gate: Home payload must not run the slideshow in perf mode
+    pm.showHome();
+    await sleep(700);
+    const perfHomePayload = pm._overlayPayload
+      ? { slideshow: pm._overlayPayload.slideshow, perf: pm._overlayPayload.perf }
+      : null;
+    const perfHomeDom = await bgDom(); // perf flag + timer off + static bg on
+
+    // O4 LRU view budget: open 3 platforms → oldest must be destroyed (≤2 live)
+    const readyPlatform = async (id) => waitFor(() => {
+      const s = pm.getSnapshot();
+      const p = s.platforms.find((x) => x.id === id);
+      return (p && p.state === 'ready') ? p : null;
+    }, 50000);
+    pm.selectPlatform('whatsapp');
+    const waReady = await readyPlatform('whatsapp');
+    pm.selectPlatform('gmail');
+    const gmReady = await readyPlatform('gmail');
+    const liveAfter2 = pm.views.size;
+    pm.selectPlatform('youtube');
+    const ytReady = await readyPlatform('youtube');
+    const liveAfter3 = pm.views.size; // whatsapp must have been destroyed → 2
+    const waDestroyed = !pm.views.has('whatsapp');
+    // a destroyed platform simply reloads (sessions persist) when revisited
+    pm.selectPlatform('whatsapp');
+    const waAgain = await readyPlatform('whatsapp');
+    const liveAfterBack = pm.views.size; // gmail/youtube trimmed back to 2
+
+    // O5 smart video focus — on the active youtube view
+    const ytRec = pm.views.get('youtube');
+    const vfDebug = { pre: { focus: pm.videoFocus, size: pm.views.size, active: pm.activeId } };
+    let vfNegative = false;
+    if (ytRec) {
+      // negative: not audible + non-video URL → must NOT enter focus
+      delete ytRec.smokeAudible;
+      pm.selectPlatform('youtube'); // ensure it's the active platform
+      await sleep(400);
+      vfDebug.afterSelect = { focus: pm.videoFocus, size: pm.views.size, active: pm.activeId, audible: (() => { try { return ytRec.view.webContents.isCurrentlyAudible(); } catch (e) { return 'ERR:' + e.message; } })(), url: ytRec.view.webContents.getURL() };
+      pm._onMediaEvent('youtube', 'start', pm.views.get('youtube'));
+      await sleep(3100); // > 2.5s confirmation window
+      vfDebug.afterNeg = { focus: pm.videoFocus, size: pm.views.size, ids: [...pm.views.keys()] };
+      vfNegative = pm.videoFocus === false && pm.views.size === 2;
+    }
+    // positive: sustained audible playback → focus ON, others released
+    let vfEnter = false, vfBlocker = false, vfBlockerStarted = false;
+    const ytRec2 = pm.views.get('youtube');
+    if (ytRec2) {
+      ytRec2.smokeAudible = true; // dev-harness stand-in for isCurrentlyAudible()
+      pm._onMediaEvent('youtube', 'start', ytRec2);
+      await sleep(3100);
+      vfDebug.afterPos = { focus: pm.videoFocus, size: pm.views.size, ids: [...pm.views.keys()], blocker: pm._psBlockerId };
+      vfEnter = pm.videoFocus === true && pm.views.size === 1 && pm.views.has('youtube');
+      vfBlocker = pm._psBlockerId !== null || pm._psBlockerUnavailable === true;
+      vfBlockerStarted = typeof pm._psBlockerId === 'number';
+    }
+    // exit: switching platform releases the blocker
+    pm.selectPlatform('telegram');
+    await sleep(400);
+    const vfExit = pm.videoFocus === false && pm._psBlockerId === null;
+    const tgReady = await readyPlatform('telegram');
+
+    // O6 LIVE OFF: perf off → slideshow returns, probe class cleared
+    settings.set({ perfMode: false });
+    pm.setPerfMode(false);
+    pm.showHome();
+    await sleep(1500);
+    const liveOff = pm.perf === false;
+    const offPayload = pm._overlayPayload
+      ? { slideshow: pm._overlayPayload.slideshow, perf: pm._overlayPayload.perf }
+      : null;
+    const offHomeDom = await bgDom();
+
+    results.perf = {
+      detect: { detect4gb, detect8gb, auto4g, auto16g, peek4g, peek16g },
+      wiring: { bootPerfOff, invalidPerfRejected, hostRamGB: +(os.totalmem() / 1024 ** 3).toFixed(1) },
+      liveOn: { pmOn: liveOn, payload: perfHomePayload, dom: perfHomeDom },
+      budget: {
+        firstTwo: !!waReady && !!gmReady && liveAfter2 === 2,
+        thirdDestroysOldest: !!ytReady && liveAfter3 === 2 && waDestroyed,
+        revisitReloads: !!waAgain && !!tgReady && liveAfterBack === 2,
+      },
+      videoFocus: {
+        vfNegative, vfEnter, vfBlocker, vfExit,
+        blockerStarted: vfBlockerStarted,
+        blockerUnavailable: pm._psBlockerUnavailable === true,
+        debug: vfDebug,
+      },
+      liveOff: { pmOff: liveOff, payload: offPayload, dom: offHomeDom },
+    };
+  } catch (e) { results.perf = { err: String(e && e.message) }; }
+
   /* ══ VERDICT ═════════════════════════════════════════════════════════ */
   const allReady = PLATFORM_IDS.every((id) => results.platformStates[id] === 'ready');
   const urlsOk = PLATFORM_IDS.every((id) => OFFICIAL_URLS[id].some((u) => (results.urls[id] || '').startsWith(u)));
@@ -791,7 +921,8 @@ async function runSmoke({ wm, pm, settings }) {
     && results.shellDom.backupCard === true && results.shellDom.bgOptions === 11
     && results.shellDom.slideshowToggle === true);
   const soak = (results.homeBackground && results.homeBackground.soak) || {};
-  const noConsecutiveRepeat = (soak.history || []).slice(1).every((v, i) => v !== soak.history[i]);
+  const noConsecutiveRepeat = (soak.newEntries || []).slice(1).every((v, i) => v !== soak.newEntries[i])
+    && soak.boundaryOk !== false;
   const slideshowOk = !!(results.homeBackground && !results.homeBackground.err
     && results.homeBackground.boot && results.homeBackground.boot.on === true
     && results.homeBackground.boot.timer === true && results.homeBackground.boot.list === 10
@@ -806,13 +937,35 @@ async function runSmoke({ wm, pm, settings }) {
   const shellClean = results.consoleErrors.shell.length === 0
     && Object.keys(results.consoleErrors.overlay).length === 0;
 
+  const perf = results.perf || {};
+  const perfOk = !!(perf && !perf.err
+    && perf.detect && perf.detect.detect4gb && perf.detect.detect8gb
+    && perf.detect.auto4g && perf.detect.auto16g
+    && perf.detect.peek4g && perf.detect.peek16g
+    && perf.wiring && perf.wiring.bootPerfOff && perf.wiring.invalidPerfRejected
+    && perf.liveOn && perf.liveOn.pmOn === true
+    && perf.liveOn.payload && perf.liveOn.payload.slideshow === false
+    && perf.liveOn.payload.perf === true
+    && perf.liveOn.dom && perf.liveOn.dom.perf === true
+    && perf.liveOn.dom.timer === false && perf.liveOn.dom.on === true
+    && perf.liveOff && perf.liveOff.pmOff === true
+    && perf.liveOff.payload && perf.liveOff.payload.slideshow === true
+    && perf.liveOff.payload.perf === false
+    && perf.liveOff.dom && perf.liveOff.dom.perf === false
+    && perf.liveOff.dom.timer === true);
+  const perfFlowOk = !!(perf && !perf.err
+    && perf.budget && perf.budget.firstTwo && perf.budget.thirdDestroysOldest
+    && perf.budget.revisitReloads
+    && perf.videoFocus && perf.videoFocus.vfNegative
+    && perf.videoFocus.vfEnter && perf.videoFocus.vfBlocker && perf.videoFocus.vfExit);
+
   results.verdict = {
     window: results.window, shell: results.shell, allReady, urlsOk, notBlank, overlayOk,
     roundTrips: rtOk, errFlowOk, offlineOk: !!(results.offlineOverlay && results.offlineOverlay.shown),
     isoOk, metaSharingOk, guardsOk, popupsOk, langOk, settingsOk: !!(results.settingsPanel && results.settingsPanel.panelOpened
       && results.settingsPanel.invalidRejected && results.settingsPanel.restored),
     responsiveOk: !!(results.responsive && results.responsive.ok), memOk, clearOk, shellClean,
-    homeBgOk, backupOk, brandingOk, tilesOk, slideshowOk,
+    homeBgOk, backupOk, brandingOk, tilesOk, slideshowOk, perfOk, perfFlowOk,
   };
   const ok = Object.values(results.verdict).every(Boolean);
 

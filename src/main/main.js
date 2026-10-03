@@ -13,9 +13,9 @@
  */
 
 const { app, ipcMain, Menu } = require('electron');
+const SettingsStore = require('./settings-store');
 const WindowManager = require('./window-manager');
 const PlatformManager = require('./platform-manager');
-const SettingsStore = require('./settings-store');
 const { getLocale } = require('./locales');
 const { setupSecurity } = require('./security-manager');
 const backup = require('./backup-manager');
@@ -24,23 +24,50 @@ const SMOKE = !app.isPackaged && process.argv.includes('--smoke');
 
 Menu.setApplicationMenu(null); // no default menu bar for the user
 
-// ── GPU / media performance switches (owner-approved Phase-1 expansion) ──────
-// Heavy feeds (Instagram reels, YouTube) benefit from hardware video decode
-// and GPU rasterization; these are rendering flags only — no security impact.
-app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder');
-app.commandLine.appendSwitch('ignore-gpu-blocklist');
-app.commandLine.appendSwitch('enable-gpu-rasterization');
-app.commandLine.appendSwitch('enable-zero-copy');
-
 if (SMOKE) {
   // Dev harness ONLY: never active in packaged builds (app.isPackaged gate),
   // even if --smoke is somehow passed to the production executable.
   // Isolated, wiped userData per smoke run → deterministic boot state
   // (fresh settings → home overlay at boot, no cached platform sessions).
+  // The RAM override pins the perf-mode auto-detection to "capable machine"
+  // so the baseline matrix is deterministic on any CI/dev host; the low-end
+  // path is unit-tested directly (detectLowEnd + fresh-store construction).
   const fs = require('fs');
   const SMOKE_DATA_DIR = '/tmp/lsh-smoke-userdata';
   try { fs.rmSync(SMOKE_DATA_DIR, { recursive: true, force: true }); } catch (_e) {}
   app.setPath('userData', SMOKE_DATA_DIR);
+}
+
+// ── Graphics / performance profile ───────────────────────────────────────────
+// Decided BEFORE app.ready (command-line switches are only effective then).
+//   • Standard profile (capable machines): keep the owner-approved Phase-1
+//     rendering switches — HW video decode + GPU rasterization.
+//   • Performance profile (low-end: 4 GB RAM / HDD / old iGPU): the exact
+//     recipe of the owner's smooth IPTV player — stock Chromium defaults,
+//     NO forced ignore-gpu-blocklist (forcing GPU paths on blocklisted old
+//     chips causes stutter) — plus lean switches for HDD/RAM headroom.
+// The profile is read from settings.json so it survives reboots; first boot
+// auto-detects from the machine's RAM (see SettingsStore.detectLowEnd).
+const PERF_PROFILE = SettingsStore.peekPerfMode(
+  app.getPath('userData'),
+  SMOKE ? 8 * 1024 * 1024 * 1024 : undefined, // smoke: deterministic "capable"
+);
+if (!PERF_PROFILE) {
+  app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder');
+  app.commandLine.appendSwitch('ignore-gpu-blocklist');
+  app.commandLine.appendSwitch('enable-gpu-rasterization');
+  app.commandLine.appendSwitch('enable-zero-copy');
+} else {
+  // stock GPU policy (like the IPTV app) + low-end switches:
+  // - 32 MB HTTP disk cache: avoids multi-hundred-MB cache churn on an HDD
+  // - no smooth scrolling / no occlusion calculation: less main-thread work
+  // - no background networking/sync/component updates: quiet idle CPU
+  app.commandLine.appendSwitch('disable-smooth-scrolling');
+  app.commandLine.appendSwitch('disable-background-networking');
+  app.commandLine.appendSwitch('disable-component-update');
+  app.commandLine.appendSwitch('disable-sync');
+  app.commandLine.appendSwitch('disk-cache-size', '33554432');
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion,MediaRouter');
 }
 
 let wm = null;
@@ -60,7 +87,9 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
-    settings = new SettingsStore(app.getPath('userData'));
+    settings = new SettingsStore(app.getPath('userData'), {
+      totalmemOverride: SMOKE ? 8 * 1024 * 1024 * 1024 : undefined,
+    });
     setupSecurity();
 
     wm = new WindowManager({ settings });
@@ -136,6 +165,7 @@ function registerIpc() {
     if (patch.language !== undefined) pm.onLanguageChanged();
     if (patch.homeBackground !== undefined) pm.onHomeBackgroundChanged();
     if (patch.backgroundSlideshow !== undefined) pm.onHomeBackgroundChanged();
+    if (patch.perfMode !== undefined) pm.setPerfMode(out.perfMode === true);
     return out;
   });
   ipcMain.handle('session:clearAll', () => pm.clearAllSessions());

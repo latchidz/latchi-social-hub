@@ -152,6 +152,20 @@
             </div>
 
             <div class="card">
+              <div class="card-title" data-i18n="settings.perfTitle">الأداء</div>
+              <div class="card-desc" data-i18n="settings.perfDesc">وضع مخصص للحواسيب الضعيفة (ذاكرة 4 جيجابايت أو أقل)</div>
+              <div class="opt-row">
+                <button id="perfToggle" class="opt" type="button">
+                  <span class="opt-label" data-i18n="settings.perfLabel">وضع الأداء</span>
+                  <span class="opt-state"></span>
+                </button>
+              </div>
+              <div class="card-desc" data-i18n="settings.perfHint">يحرر الذاكرة للمنصة النشطة ويوقف المؤثرات الحركية، وعند تشغيل فيديو يغلق بقية المنصات تلقائياً ويحافظ على الشاشة مضاءة. جلسات الدخول محفوظة دائماً.</div>
+              <div class="card-desc perf-auto-hint" id="perfAutoHint" data-i18n="settings.perfAutoHint" hidden>تم التفعيل تلقائياً ليناسب جهازك</div>
+              <div class="card-desc" id="perfRestartHint" data-i18n="settings.perfRestartHint" hidden>لبعض الخيارات (الرسوميات) أثر كامل بعد إعادة تشغيل التطبيق</div>
+            </div>
+
+            <div class="card">
               <div class="card-title" data-i18n="settings.backup">البيانات والنسخ الاحتياطي</div>
               <div class="card-desc" data-i18n="settings.backupDesc">تصدير جلسات الدخول والإعدادات إلى ملف واحد مشفّر، أو استعادتها على هذا الجهاز</div>
               <div class="opt-row wrap">
